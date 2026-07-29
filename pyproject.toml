@@ -1,0 +1,44 @@
+[project]
+name = "nowforecasting"
+version = "0.1.0"
+description = "A Python framework for nowcasting, forecasting, and scenario analysis of macroeconomic aggregates."
+authors = [
+  { name = "Renato Vassallo", email = "renato.vassallo@bse.eu" }
+]
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  # MIDAS = the reusable mixed-frequency modelling core (models, backtests, bands,
+  # adaptive combination). The nowcast/ framework builds on it. Pulls in
+  # numpy/pandas/scipy/scikit-learn/statsmodels/matplotlib/pyarrow transitively.
+  # 0.2.2 carries GBTreesNowcaster, the information-index adaptive combination,
+  # the two-block DFM and release_cycle_bands that domestic/peru_gdp uses.
+  "MIDAS @ https://github.com/RenatoVassallo/MIDAS/releases/download/0.2.2/midas-0.2.2-py3-none-any.whl",
+  "MacroPy @ https://github.com/RenatoVassallo/MacroPy/releases/download/0.1.10/macropy-0.1.10-py3-none-any.whl",
+  "openpyxl>=3.1",   # read metadata.xlsx / the harmonised database
+  "pyarrow>=14",     # cached backtest results (parquet)
+]
+
+[dependency-groups]
+dev = [
+  "ipykernel>=6.29",
+  "jupyter>=1.0",
+  "nbconvert>=7.16",
+  "nbformat>=5.10",
+  "pytest>=8.0",
+  "xlsxwriter>=3.1",        # 00_get_data.ipynb writes the database
+  "python-dotenv>=1.0",     # 00_get_data.ipynb reads the FRED key from .env
+]
+
+# This is a research repository, not an installable package: uv manages the environment
+# but does not build/install this project itself. The `nowcast` framework and the
+# per-app code are imported by adding the repo root to sys.path (handled in each
+# app's config), so they do not need to be pip-installed.
+[tool.uv]
+package = false
+
+# To develop against a local MIDAS checkout instead of the published wheel,
+# uncomment:
+# [tool.uv.sources]
+# midas = { path = "../MIDAS", editable = true }

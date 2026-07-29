@@ -1,0 +1,59 @@
+# --------------------------------------------------------------------------- #
+# Policy: the repository publishes the MODELING FRAMEWORK AND PIPELINE STAGES.
+# Data retrieval (sources/), databases and caches (input/, output/, *.parquet),
+# development notebooks and generated artifacts stay local. Results are
+# published on the companion website, not here.
+# --------------------------------------------------------------------------- #
+
+# Secrets (FRED key etc.) - never commit
+**/.env
+*.pem
+*.key
+
+# Environments / caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+**/.cache/
+
+# Editor / OS / assistant
+.DS_Store
+.claude/
+
+# Data layer: retrieval code, caches and databases (provider licensing;
+# the public interface is documented in README and AGENTS.md)
+sources/
+input/
+**/input/
+output/
+**/output/
+*.parquet
+*.xlsx
+*.xls
+*.dta
+*.db
+*.sqlite
+
+# Development notebooks (production runs pure .py; notebooks are the lab)
+notebooks/
+
+# Generated artifacts: published fans, figures, weekly report
+products/**/*.csv
+products/figures/
+products/report.pdf
+products/report.md
+figures/
+**/figures/
+
+# LaTeX build artifacts
+**/*.aux
+**/*.fdb_latexmk
+**/*.fls
+**/*.log
+**/*.out
+**/*.synctex.gz
+
+# Tests whose subject is the private data layer stay local
+tests/test_data_inei.py

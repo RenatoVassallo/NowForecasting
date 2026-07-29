@@ -1,0 +1,167 @@
+% NowForecasting weekly report - filled by pipeline/stages/report.py
+\documentclass[aspectratio=169,10pt]{beamer}
+\usepackage[T1]{fontenc}
+\usepackage{mathpazo}
+\usepackage{helvet}
+\usepackage{booktabs}
+\usepackage{graphicx}
+
+% ---- palette (renatovassallo.github.io) --------------------------------------
+\definecolor{ink}{HTML}{2A231D}
+\definecolor{muted}{HTML}{6B5F52}
+\definecolor{faint}{HTML}{8C7F6F}
+\definecolor{bgc}{HTML}{F6F0E6}
+\definecolor{surface}{HTML}{FBF7F0}
+\definecolor{border}{HTML}{E6DCCA}
+\definecolor{accent}{HTML}{B0472A}
+\definecolor{accenttint}{HTML}{F0E0D6}
+\definecolor{gold}{HTML}{9A7B2E}
+\definecolor{olive}{HTML}{5A7D43}
+
+\setbeamercolor{background canvas}{bg=bgc}
+\setbeamercolor{normal text}{fg=ink}
+\setbeamercolor{frametitle}{fg=ink,bg=bgc}
+\setbeamercolor{title}{fg=ink}
+\setbeamercolor{structure}{fg=accent}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{itemize item}{\textcolor{accent}{\rule[0.45ex]{0.6ex}{0.6ex}}}
+\setbeamerfont{frametitle}{family=\rmfamily,size=\large}
+\setbeamertemplate{frametitle}{\vspace{0.55em}{\usebeamerfont{frametitle}\insertframetitle}\\[-0.35em]{\color{accent}\rule{0.14\textwidth}{1.1pt}}}
+\setbeamertemplate{footline}{%
+  \hspace{1.2em}{\scriptsize\color{faint}NowForecasting\quad\textbar\quad <<DATE>>}\hfill
+  {\scriptsize\color{faint}\insertframenumber}\hspace{1.2em}\vspace{0.6em}}
+
+\begin{document}
+
+% ---- cover --------------------------------------------------------------------
+\begin{frame}[plain]
+  \vspace{1.1cm}
+  {\rmfamily\Huge Peru Macro Outlook}\\[0.25em]
+  {\color{muted} Weekly nowcast and conditional projections \;\textbar\; <<DATE>>}\\[0.4em]
+  {\color{accent}\rule{0.86\textwidth}{1.6pt}}\\[1.0em]
+  \begin{columns}[T]
+    \begin{column}{0.25\textwidth}
+      {\rmfamily\color{accent}\fontsize{26}{28}\selectfont <<NOWCAST>>\%}\\[0.2em]
+      GDP nowcast, <<QUARTER>>\\[0.1em]
+      {\scriptsize\color{muted}90\% band <<NOWCAST90>>}
+    \end{column}
+    \begin{column}{0.25\textwidth}
+      {\rmfamily\color{accent}\fontsize{26}{28}\selectfont <<ANNUAL1>>\%}\\[0.2em]
+      <<ANNUAL1Y>> annual average\\[0.1em]
+      {\scriptsize\color{muted}IMF WEO: <<WEO1>>\%}
+    \end{column}
+    \begin{column}{0.25\textwidth}
+      {\rmfamily\color{accent}\fontsize{26}{28}\selectfont <<ANNUAL2>>\%}\\[0.2em]
+      <<ANNUAL2Y>> annual average\\[0.1em]
+      {\scriptsize\color{muted}IMF WEO: <<WEO2>>\%}
+    \end{column}
+    \begin{column}{0.25\textwidth}
+      {\rmfamily\color{olive}\fontsize{26}{28}\selectfont <<TOTNOW>>\%}\\[0.2em]
+      terms of trade, current quarter\\[0.1em]
+      {\scriptsize\color{muted}<<TOTSRC>>}
+    \end{column}
+  \end{columns}
+  \vspace{0.9em}
+  {\small\color{muted}<<INFOSTATE>>}
+\end{frame}
+
+% ---- flagship: the release cycle ----------------------------------------------
+\begin{frame}[plain]
+  \centering
+  \includegraphics[width=0.98\textwidth]{figures/nowcast_cycle.pdf}
+\end{frame}
+
+% ---- china + terms of trade ---------------------------------------------------
+\begin{frame}{The external anchors}
+  \centering
+  \includegraphics[width=0.99\textwidth]{figures/china_tot.pdf}
+\end{frame}
+
+% ---- conditioning variables ---------------------------------------------------
+\begin{frame}{What the projection is conditioned on}
+  \centering
+  \includegraphics[width=0.88\textwidth]{figures/conditioning.pdf}\\
+  {\scriptsize\color{muted}Dashed lines: assumed paths (deterministic in the central
+  scenario). Bands: each input's own 60/90\% uncertainty, from its real-time errors.}
+\end{frame}
+
+% ---- the fan -------------------------------------------------------------------
+\begin{frame}{GDP Growth Forecast (YoY growth rate)}
+  \begin{columns}[T]
+    \begin{column}{0.74\textwidth}
+      \includegraphics[width=\textwidth]{figures/fan_main.pdf}
+    \end{column}
+    \begin{column}{0.26\textwidth}
+      \vspace{0.4em}
+      {\scriptsize\setlength{\tabcolsep}{3pt}
+      \begin{tabular}{@{}lccc@{}}
+        \toprule
+         & central & 60\% & 90\% \\
+        \midrule
+<<FANROWS>>
+        \bottomrule
+      \end{tabular}}\\[0.8em]
+      {\scriptsize\color{muted}Mode of the two-piece normal; shortest intervals.
+      First row is the nowcast.}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---- appendix -------------------------------------------------------------------
+\begin{frame}[plain]
+  \vspace{2.6cm}\centering
+  {\rmfamily\Huge Appendix}\\[0.4em]
+  {\color{accent}\rule{0.3\textwidth}{1.4pt}}
+\end{frame}
+
+\begin{frame}[plain]
+  \centering
+  \includegraphics[width=0.98\textwidth]{figures/cycle_grid.pdf}
+\end{frame}
+
+\begin{frame}{Conditioning paths}
+  \centering
+  {\tiny
+  \begin{tabular}{@{}l*{12}{c}@{}}
+    \toprule
+    <<CONDHEAD>> \\
+    \midrule
+<<CONDROWS>>
+    \bottomrule
+  \end{tabular}}\\[0.6em]
+  {\scriptsize\color{muted}Four realised quarters, then the assumed paths.
+  Expectations held at the last value; China industrial production bridged from
+  the published China GDP profile.}
+\end{frame}
+
+\begin{frame}{Data snapshot}
+  \begin{columns}[T]
+    \begin{column}{0.55\textwidth}
+      {\footnotesize Monthly series (last four months)}\\[0.3em]
+      {\tiny
+      \begin{tabular}{@{}l*{4}{r}@{}}
+        \toprule
+        <<MHEAD>> \\
+        \midrule
+<<MROWS>>
+        \bottomrule
+      \end{tabular}}
+    \end{column}
+    \begin{column}{0.45\textwidth}
+      {\footnotesize Quarterly series (last four quarters)}\\[0.3em]
+      {\tiny
+      \begin{tabular}{@{}l*{4}{r}@{}}
+        \toprule
+        <<QHEAD>> \\
+        \midrule
+<<QROWS>>
+        \bottomrule
+      \end{tabular}}\\[0.9em]
+      {\scriptsize\color{muted}Bands throughout are calibrated on each model's own
+      real-time forecast errors, excluding 2020--21 at both the launch and the
+      reference end.}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\end{document}
