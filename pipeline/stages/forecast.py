@@ -52,14 +52,17 @@ def run(store, params, panels) -> list[str]:
         monthly, quarterly, panel = panels.get(name) or t.load_panel()
         models = modelset.build(spec_cfg["models"])
 
+        from pipeline.lib.context import resolve_as_of
+        as_of = resolve_as_of(getattr(store, "ctx", None))
         bt = fc.run_backtest(panel, t, models, horizons=metadata.HORIZONS,
                              lookback_years=metadata.FORECAST_LOOKBACK_YEARS)
-        live = fc.live_forecast(panel, t, models, horizons=metadata.HORIZONS)
+        live = fc.live_forecast(panel, t, models, horizons=metadata.HORIZONS,
+                                today=as_of)
         rc = fc.combine_by_horizon(pd.concat([bt, live], ignore_index=True),
                                    spec_cfg["members"], name=metadata.FORECAST_COMBO)
 
         benchmark = spec_cfg.get("benchmark", t.baseline)
-        start = pd.Timestamp.now().normalize() - pd.DateOffset(years=metadata.METRICS_LOOKBACK_YEARS)
+        start = as_of - pd.DateOffset(years=metadata.METRICS_LOOKBACK_YEARS)
         sb = fc.horizon_scoreboard(rc, benchmark=benchmark, start=start,
                                    exclude_years=metadata.FAN["exclude_years"])
 

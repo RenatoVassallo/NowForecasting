@@ -57,3 +57,6 @@ figures/
 
 # Tests whose subject is the private data layer stay local
 tests/test_data_inei.py
+
+# Teaching side-project (course/): private, not part of the published framework
+course/

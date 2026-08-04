@@ -961,8 +961,8 @@ wheels = [
 
 [[package]]
 name = "midas"
-version = "0.2.2"
-source = { url = "https://github.com/RenatoVassallo/MIDAS/releases/download/0.2.2/midas-0.2.2-py3-none-any.whl" }
+version = "0.2.3"
+source = { url = "https://github.com/RenatoVassallo/MIDAS/releases/download/0.2.3/midas-0.2.3-py3-none-any.whl" }
 dependencies = [
     { name = "matplotlib" },
     { name = "numpy" },
@@ -976,7 +976,7 @@ dependencies = [
     { name = "tqdm" },
 ]
 wheels = [
-    { url = "https://github.com/RenatoVassallo/MIDAS/releases/download/0.2.2/midas-0.2.2-py3-none-any.whl", hash = "sha256:4243abbd00b27a3e0712dd1178683a6fed932f6720c0f582ddcb8c433238b479" },
+    { url = "https://github.com/RenatoVassallo/MIDAS/releases/download/0.2.3/midas-0.2.3-py3-none-any.whl", hash = "sha256:d3fad618a0294d82ebacfcc5ff4e78bdc10cb7b1643d5d33f46ef41c12e6fcfd" },
 ]
 
 [package.metadata]
@@ -1143,7 +1143,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "macropy", url = "https://github.com/RenatoVassallo/MacroPy/releases/download/0.1.10/macropy-0.1.10-py3-none-any.whl" },
-    { name = "midas", url = "https://github.com/RenatoVassallo/MIDAS/releases/download/0.2.2/midas-0.2.2-py3-none-any.whl" },
+    { name = "midas", url = "https://github.com/RenatoVassallo/MIDAS/releases/download/0.2.3/midas-0.2.3-py3-none-any.whl" },
     { name = "openpyxl", specifier = ">=3.1" },
     { name = "pyarrow", specifier = ">=14" },
 ]

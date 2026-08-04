@@ -1,0 +1,276 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nowforecasting.local/schemas/data-registry.schema.json",
+  "title": "NowForecasting data registry",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "scope",
+    "status_definitions",
+    "series"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string"
+    },
+    "scope": {
+      "type": "string"
+    },
+    "status_definitions": {
+      "type": "object",
+      "required": [
+        "not_yet_released",
+        "source_unavailable",
+        "ingestion_failure",
+        "validation_failure",
+        "stale_observation",
+        "manually_overridden",
+        "successfully_updated"
+      ],
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "series": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/series"
+      }
+    }
+  },
+  "$defs": {
+    "series": {
+      "type": "object",
+      "required": [
+        "variable_name",
+        "internal_code",
+        "provider_code",
+        "source_institution",
+        "source_url",
+        "frequency",
+        "unit",
+        "transformation",
+        "geographic_coverage",
+        "start_date",
+        "release_calendar",
+        "publication_lag_days",
+        "revision_policy",
+        "seasonal_adjustment_status",
+        "vintage_availability",
+        "expected_update_frequency",
+        "current_availability_status",
+        "ingestion_script",
+        "downstream_models",
+        "fallback_source",
+        "validation_rules",
+        "last_successful_refresh",
+        "known_issues",
+        "monitor",
+        "required_for_publication"
+      ],
+      "properties": {
+        "variable_name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "internal_code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "provider_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_institution": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_url": {
+          "type": "string",
+          "minLength": 1
+        },
+        "frequency": {
+          "enum": [
+            "D",
+            "M",
+            "Q",
+            "A",
+            "irregular"
+          ]
+        },
+        "unit": {
+          "type": "string",
+          "minLength": 1
+        },
+        "transformation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "geographic_coverage": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start_date": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "release_calendar": {
+          "type": "object",
+          "required": [
+            "rule",
+            "source"
+          ],
+          "properties": {
+            "rule": {
+              "enum": [
+                "period_end_plus_lag",
+                "period_start_plus_lag",
+                "age_threshold",
+                "manual"
+              ]
+            },
+            "source": {
+              "type": "string"
+            },
+            "stale_after_days": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": true
+        },
+        "publication_lag_days": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "revision_policy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "seasonal_adjustment_status": {
+          "type": "string",
+          "minLength": 1
+        },
+        "vintage_availability": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expected_update_frequency": {
+          "type": "string",
+          "minLength": 1
+        },
+        "current_availability_status": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            null,
+            "not_yet_released",
+            "source_unavailable",
+            "ingestion_failure",
+            "validation_failure",
+            "stale_observation",
+            "manually_overridden",
+            "successfully_updated"
+          ]
+        },
+        "ingestion_script": {
+          "type": "string",
+          "minLength": 1
+        },
+        "downstream_models": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "fallback_source": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "validation_rules": {
+          "type": "object",
+          "required": [
+            "unique_periods",
+            "monotonic_periods",
+            "allow_all_missing"
+          ],
+          "additionalProperties": true
+        },
+        "last_successful_refresh": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "known_issues": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "monitor": {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "enum": [
+                "target_panel",
+                "tabular_file",
+                "manual",
+                "none"
+              ]
+            },
+            "target": {
+              "type": "string"
+            },
+            "frame": {
+              "enum": [
+                "monthly",
+                "quarterly"
+              ]
+            },
+            "column": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "date_column": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "filters": {
+              "type": "object"
+            },
+            "manual_override": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        },
+        "required_for_publication": {
+          "type": "boolean",
+          "description": "True when a stale, failed or invalid state of this series must block publication (availability preflight)."
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

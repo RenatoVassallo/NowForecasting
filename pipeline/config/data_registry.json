@@ -1,0 +1,5089 @@
+{
+  "schema_version": "0.2.0",
+  "scope": "Every active series in sources/catalog.csv plus the hand-curated production-critical set. Static economic metadata only; refresh outcomes live in the append-only event log (output/data_quality/refresh_events.jsonl).",
+  "status_definitions": {
+    "not_yet_released": "The cache contains every observation expected by the as-of date, while a later reference period is complete but its scheduled release date has not arrived.",
+    "source_unavailable": "The source endpoint or upstream publication is unavailable at the latest attempted refresh.",
+    "ingestion_failure": "The source was reachable, but retrieval, parsing, transformation, or persistence failed.",
+    "validation_failure": "Data were retrieved but failed schema, range, uniqueness, timing, or other declared validation rules.",
+    "stale_observation": "At least one observation should have been released by the as-of date but is absent from the monitored cache.",
+    "manually_overridden": "A documented manual value currently supersedes the automated source.",
+    "successfully_updated": "The monitored cache includes the latest reference period expected by the as-of date and no later failure overrides that success.",
+    "unassessed": "Static registry fields use null until the monitoring view is built. Unassessed is never a dashboard status."
+  },
+  "series": [
+    {
+      "variable_name": "Peru real GDP growth",
+      "internal_code": "g_pbiq",
+      "provider_code": "PN02538AQ",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "Q",
+      "unit": "percent year over year, log change",
+      "transformation": "X13 seasonal adjustment of the real GDP level, then 100 times the four-quarter log difference",
+      "geographic_coverage": "Peru",
+      "start_date": "1995-03-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "assumed scalar lag in targets/peru_gdp.py"
+      },
+      "publication_lag_days": 51,
+      "revision_policy": "Revisable national accounts; the production panel currently stores a latest-revised snapshot",
+      "seasonal_adjustment_status": "Project-generated X13 adjustment estimated on the full cached sample",
+      "vintage_availability": "Run snapshots exist, but historical source vintages are not used by the backtest",
+      "expected_update_frequency": "quarterly",
+      "current_availability_status": null,
+      "ingestion_script": "targets/peru_gdp.py:refresh and legacy core/preprocess.py build",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru conditional BVAR",
+        "Peru fan chart"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -40,
+          40
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "The automated refresh does not rebuild the spec3 panel",
+        "The source catalog declares qoq_ann while the target code uses year-over-year growth",
+        "Historical seasonal adjustment is full-sample rather than vintage-specific"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "quarterly",
+        "column": "g_pbiq",
+        "path": "input/peru/quarterly_sa_spec3.parquet"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "Peru monthly GDP proxy growth",
+      "internal_code": "g_pbim_yoy",
+      "provider_code": "PN01770AM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "percent year over year, log change",
+      "transformation": "X13 seasonal adjustment of monthly GDP level, then 100 times the twelve-month log difference",
+      "geographic_coverage": "Peru",
+      "start_date": "1995-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "assumed scalar lag in targets/peru_gdp.py"
+      },
+      "publication_lag_days": 51,
+      "revision_policy": "Revisable; latest-revised cache used in historical backtests",
+      "seasonal_adjustment_status": "Project-generated X13 adjustment estimated on the full cached sample",
+      "vintage_availability": "Run snapshots only for the production modeling panel",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "targets/peru_gdp.py and legacy core/preprocess.py build",
+      "downstream_models": [
+        "Bridge(leaders)",
+        "P-MIDAS(leaders)",
+        "Adaptive-IC"
+      ],
+      "fallback_source": "INEI monthly activity bulletins are archived but not wired into the production panel",
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -80,
+          80
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "The automated refresh reports cache age but does not rebuild this series",
+        "Historical values contain final-vintage revisions and full-sample seasonal factors"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_pbim_yoy",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "Peru sector expectations, three months",
+      "internal_code": "exp_sec3m",
+      "provider_code": "PD38046AM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "diffusion index",
+      "transformation": "none",
+      "geographic_coverage": "Peru",
+      "start_date": "2002-06-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "assumed scalar lag in Peru metadata"
+      },
+      "publication_lag_days": 7,
+      "revision_policy": "Survey release; corrections are possible and no source-vintage archive is retained",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "Run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "legacy Peru spec3 preprocess",
+      "downstream_models": [
+        "Bridge(leaders)",
+        "P-MIDAS(leaders)",
+        "Adaptive-IC"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          0,
+          100
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "The automated refresh does not rebuild the model cache"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "exp_sec3m",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "Peru economy expectations, three months",
+      "internal_code": "exp_eco3m",
+      "provider_code": "PD38045AM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "diffusion index",
+      "transformation": "none",
+      "geographic_coverage": "Peru",
+      "start_date": "2002-04-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "assumed scalar lag in Peru metadata"
+      },
+      "publication_lag_days": 7,
+      "revision_policy": "Survey release; corrections are possible and no source-vintage archive is retained",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "Run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "legacy Peru spec3 preprocess",
+      "downstream_models": [
+        "Bridge(leaders)",
+        "P-MIDAS(leaders)",
+        "Adaptive-IC",
+        "Peru conditional BVAR"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          0,
+          100
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "The medium-term forecast holds the latest value flat for eight quarters",
+        "The automated refresh does not rebuild the model cache"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "exp_eco3m",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "Peru domestic cement consumption growth",
+      "internal_code": "cem",
+      "provider_code": "PD37967GM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "percent year over year",
+      "transformation": "none, source publishes growth",
+      "geographic_coverage": "Peru",
+      "start_date": "1994-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "assumed scalar lag in Peru metadata"
+      },
+      "publication_lag_days": 51,
+      "revision_policy": "Revisable; no source-vintage archive is retained",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "Run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "legacy Peru spec3 preprocess",
+      "downstream_models": [
+        "Bridge(leaders)",
+        "P-MIDAS(leaders)",
+        "Adaptive-IC"
+      ],
+      "fallback_source": "INEI cement bulletin series exists but is not wired as a production fallback",
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -100,
+          150
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "The automated refresh does not rebuild the model cache"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "cem",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "Peru private investment growth",
+      "internal_code": "g_invq_m",
+      "provider_code": "PN02533AQ",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "Q",
+      "unit": "percent year over year",
+      "transformation": "quarterly growth series placed on the quarter end month",
+      "geographic_coverage": "Peru",
+      "start_date": "1995-03-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "assumed scalar lag in notebooks/peru/forecast/common.py"
+      },
+      "publication_lag_days": 51,
+      "revision_policy": "Revisable national accounts; latest-revised cache",
+      "seasonal_adjustment_status": "source cache is treated as model-ready",
+      "vintage_availability": "No historical source vintages in the current forecast backtest",
+      "expected_update_frequency": "quarterly",
+      "current_availability_status": null,
+      "ingestion_script": "manual cache input/bcrp/private_investment.parquet",
+      "downstream_models": [
+        "Peru conditional BVAR S1"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -80,
+          80
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "The cache has no automated refresh or explicit provenance manifest"
+      ],
+      "monitor": {
+        "type": "tabular_file",
+        "path": "input/bcrp/private_investment.parquet",
+        "column": "g_invq",
+        "date_column": null
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "Peru terms of trade growth used by the domestic model",
+      "internal_code": "g_tdi",
+      "provider_code": "PN38923BM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "percent year over year, log change",
+      "transformation": "100 times the twelve-month log difference of the official index",
+      "geographic_coverage": "Peru",
+      "start_date": "1997-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv; forecast/common.py currently uses a different lag"
+      },
+      "publication_lag_days": 40,
+      "revision_policy": "Official index is revisable; the production model uses a latest-revised cache",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "Run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "legacy Peru spec3 preprocess",
+      "downstream_models": [
+        "Peru conditional BVAR S1"
+      ],
+      "fallback_source": "pipeline commodity block based on the same BCRP index",
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -60,
+          80
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "The commodity block supplies arithmetic growth into a model trained on log growth"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_tdi",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "United States real GDP growth, year over year",
+      "internal_code": "us_gdp_yoy_m",
+      "provider_code": "GDPC1",
+      "source_institution": "United States Bureau of Economic Analysis via FRED",
+      "source_url": "https://api.stlouisfed.org/fred/series/observations",
+      "frequency": "Q",
+      "unit": "percent year over year, arithmetic change",
+      "transformation": "100 times level divided by its four-quarter lag minus one; placed on the quarter end month",
+      "geographic_coverage": "United States",
+      "start_date": "1948-03-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "approximate BEA advance release lag"
+      },
+      "publication_lag_days": 30,
+      "revision_policy": "BEA GDP is repeatedly revised; the current FRED history is used as realized data",
+      "seasonal_adjustment_status": "official seasonally adjusted annual rate level",
+      "vintage_availability": "Current revised history only; run snapshots accumulate prospectively",
+      "expected_update_frequency": "quarterly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/us.py and targets/usa.py",
+      "downstream_models": [
+        "United States SPF-WEO block",
+        "Peru conditional BVAR",
+        "commodity BVAR"
+      ],
+      "fallback_source": "Philadelphia Fed SPF and IMF WEO for forecast values",
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -20,
+          30
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Historical evaluation uses revised realized GDP rather than ALFRED or BEA vintages"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "usa",
+        "frame": "monthly",
+        "column": "us_gdp_yoy_m",
+        "path": "input/us/us_quarterly.parquet"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "United States real GDP growth, quarter over quarter annualized",
+      "internal_code": "us_gdp_saar_m",
+      "provider_code": "GDPC1",
+      "source_institution": "United States Bureau of Economic Analysis via FRED",
+      "source_url": "https://api.stlouisfed.org/fred/series/observations",
+      "frequency": "Q",
+      "unit": "percent quarter over quarter at annual rate",
+      "transformation": "400 times the one-quarter log difference; placed on the quarter end month",
+      "geographic_coverage": "United States",
+      "start_date": "1947-06-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "approximate BEA advance release lag"
+      },
+      "publication_lag_days": 30,
+      "revision_policy": "BEA GDP is repeatedly revised; latest FRED history",
+      "seasonal_adjustment_status": "official seasonally adjusted annual rate level",
+      "vintage_availability": "Current revised history only",
+      "expected_update_frequency": "quarterly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/us.py and targets/usa.py",
+      "downstream_models": [
+        "SPF path conversion in the United States block",
+        "Peru conditional BVAR"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -40,
+          50
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Historical evaluation uses revised realized GDP"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "usa",
+        "frame": "monthly",
+        "column": "us_gdp_saar_m",
+        "path": "input/us/us_quarterly.parquet"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "Atlanta Fed GDPNow",
+      "internal_code": "us_gdpnow",
+      "provider_code": "GDPNOW",
+      "source_institution": "Federal Reserve Bank of Atlanta via FRED",
+      "source_url": "https://fred.stlouisfed.org/series/GDPNOW",
+      "frequency": "Q",
+      "unit": "percent quarter over quarter at annual rate",
+      "transformation": "none",
+      "geographic_coverage": "United States",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "age_threshold",
+        "source": "irregular nowcast updates",
+        "stale_after_days": 14
+      },
+      "publication_lag_days": 0,
+      "revision_policy": "The latest FRED value replaces prior intra-quarter nowcasts unless separately archived",
+      "seasonal_adjustment_status": "not applicable",
+      "vintage_availability": "Current FRED observation only in this pipeline; run snapshots can accumulate vintages prospectively",
+      "expected_update_frequency": "several times per month",
+      "current_availability_status": null,
+      "ingestion_script": "sources/us.py",
+      "downstream_models": [
+        "Report only; not used in the United States central path"
+      ],
+      "fallback_source": "Philadelphia Fed SPF",
+      "validation_rules": {
+        "unique_periods": false,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -50,
+          50
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "The pipeline describes GDPNow as an external input, but the United States path does not use it",
+        "Intra-quarter vintages are not reconstructed historically"
+      ],
+      "monitor": {
+        "type": "tabular_file",
+        "path": "input/us/us_quarterly.parquet",
+        "column": "us_gdpnow",
+        "date_column": null,
+        "freshness_basis": "cache_mtime"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "Philadelphia Fed SPF real GDP growth, current quarter",
+      "internal_code": "spf_gdp_h0",
+      "provider_code": "DRGDP2",
+      "source_institution": "Federal Reserve Bank of Philadelphia",
+      "source_url": "https://www.philadelphiafed.org/surveys-and-data/real-time-data-research/median-forecasts",
+      "frequency": "Q",
+      "unit": "percent quarter over quarter at annual rate",
+      "transformation": "none; converted to implied year-over-year growth in the United States block",
+      "geographic_coverage": "United States",
+      "start_date": "1968-10-01",
+      "release_calendar": {
+        "rule": "period_start_plus_lag",
+        "source": "survey-quarter approximation in targets/usa.py"
+      },
+      "publication_lag_days": 45,
+      "revision_policy": "Each survey row is a historical forecast vintage; occasional source corrections are possible",
+      "seasonal_adjustment_status": "not applicable",
+      "vintage_availability": "Full historical survey rows",
+      "expected_update_frequency": "quarterly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/us.py:fetch_spf",
+      "downstream_models": [
+        "United States SPF-WEO block",
+        "Peru conditional BVAR"
+      ],
+      "fallback_source": "IMF WEO",
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -50,
+          50
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "The code uses an approximate day 45 timing rather than the actual survey release calendar"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "usa",
+        "frame": "monthly",
+        "column": "spf_gdp_h0",
+        "path": "input/us/spf_median_gdp_growth.parquet"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "Philadelphia Fed SPF real GDP growth, one quarter ahead",
+      "internal_code": "spf_gdp_h1",
+      "provider_code": "DRGDP3",
+      "source_institution": "Federal Reserve Bank of Philadelphia",
+      "source_url": "https://www.philadelphiafed.org/surveys-and-data/real-time-data-research/median-forecasts",
+      "frequency": "Q",
+      "unit": "percent quarter over quarter at annual rate",
+      "transformation": "none; converted to implied year-over-year growth in the United States block",
+      "geographic_coverage": "United States",
+      "start_date": "1968-10-01",
+      "release_calendar": {
+        "rule": "period_start_plus_lag",
+        "source": "survey-quarter approximation in targets/usa.py"
+      },
+      "publication_lag_days": 45,
+      "revision_policy": "Each survey row is a historical forecast vintage",
+      "seasonal_adjustment_status": "not applicable",
+      "vintage_availability": "Full historical survey rows",
+      "expected_update_frequency": "quarterly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/us.py:fetch_spf",
+      "downstream_models": [
+        "United States SPF-WEO block",
+        "Peru conditional BVAR"
+      ],
+      "fallback_source": "IMF WEO",
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -50,
+          50
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Approximate release timing"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "usa",
+        "frame": "monthly",
+        "column": "spf_gdp_h1",
+        "path": "input/us/spf_median_gdp_growth.parquet"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "Philadelphia Fed SPF real GDP growth, two quarters ahead",
+      "internal_code": "spf_gdp_h2",
+      "provider_code": "DRGDP4",
+      "source_institution": "Federal Reserve Bank of Philadelphia",
+      "source_url": "https://www.philadelphiafed.org/surveys-and-data/real-time-data-research/median-forecasts",
+      "frequency": "Q",
+      "unit": "percent quarter over quarter at annual rate",
+      "transformation": "none; converted to implied year-over-year growth in the United States block",
+      "geographic_coverage": "United States",
+      "start_date": "1968-10-01",
+      "release_calendar": {
+        "rule": "period_start_plus_lag",
+        "source": "survey-quarter approximation in targets/usa.py"
+      },
+      "publication_lag_days": 45,
+      "revision_policy": "Each survey row is a historical forecast vintage",
+      "seasonal_adjustment_status": "not applicable",
+      "vintage_availability": "Full historical survey rows",
+      "expected_update_frequency": "quarterly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/us.py:fetch_spf",
+      "downstream_models": [
+        "United States SPF-WEO block",
+        "Peru conditional BVAR"
+      ],
+      "fallback_source": "IMF WEO",
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -50,
+          50
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Approximate release timing"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "usa",
+        "frame": "monthly",
+        "column": "spf_gdp_h2",
+        "path": "input/us/spf_median_gdp_growth.parquet"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "Philadelphia Fed SPF real GDP growth, three quarters ahead",
+      "internal_code": "spf_gdp_h3",
+      "provider_code": "DRGDP5",
+      "source_institution": "Federal Reserve Bank of Philadelphia",
+      "source_url": "https://www.philadelphiafed.org/surveys-and-data/real-time-data-research/median-forecasts",
+      "frequency": "Q",
+      "unit": "percent quarter over quarter at annual rate",
+      "transformation": "none; converted to implied year-over-year growth in the United States block",
+      "geographic_coverage": "United States",
+      "start_date": "1968-10-01",
+      "release_calendar": {
+        "rule": "period_start_plus_lag",
+        "source": "survey-quarter approximation in targets/usa.py"
+      },
+      "publication_lag_days": 45,
+      "revision_policy": "Each survey row is a historical forecast vintage",
+      "seasonal_adjustment_status": "not applicable",
+      "vintage_availability": "Full historical survey rows",
+      "expected_update_frequency": "quarterly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/us.py:fetch_spf",
+      "downstream_models": [
+        "United States SPF-WEO block",
+        "Peru conditional BVAR"
+      ],
+      "fallback_source": "IMF WEO",
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -50,
+          50
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Approximate release timing"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "usa",
+        "frame": "monthly",
+        "column": "spf_gdp_h3",
+        "path": "input/us/spf_median_gdp_growth.parquet"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "Philadelphia Fed SPF real GDP growth, four quarters ahead",
+      "internal_code": "spf_gdp_h4",
+      "provider_code": "DRGDP6",
+      "source_institution": "Federal Reserve Bank of Philadelphia",
+      "source_url": "https://www.philadelphiafed.org/surveys-and-data/real-time-data-research/median-forecasts",
+      "frequency": "Q",
+      "unit": "percent quarter over quarter at annual rate",
+      "transformation": "none; converted to implied year-over-year growth in the United States block",
+      "geographic_coverage": "United States",
+      "start_date": "1969-10-01",
+      "release_calendar": {
+        "rule": "period_start_plus_lag",
+        "source": "survey-quarter approximation in targets/usa.py"
+      },
+      "publication_lag_days": 45,
+      "revision_policy": "Each survey row is a historical forecast vintage",
+      "seasonal_adjustment_status": "not applicable",
+      "vintage_availability": "Full historical survey rows",
+      "expected_update_frequency": "quarterly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/us.py:fetch_spf",
+      "downstream_models": [
+        "United States SPF-WEO block",
+        "Peru conditional BVAR"
+      ],
+      "fallback_source": "IMF WEO",
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -50,
+          50
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Approximate release timing"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "usa",
+        "frame": "monthly",
+        "column": "spf_gdp_h4",
+        "path": "input/us/spf_median_gdp_growth.parquet"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "IMF WEO real GDP forecast, United States",
+      "internal_code": "weo_usa_ngdp_rpch",
+      "provider_code": "USA.NGDP_RPCH",
+      "source_institution": "International Monetary Fund via IMF SDMX and DBnomics",
+      "source_url": "https://api.imf.org/external/sdmx/3.0/data/dataflow/IMF.RES/WEO/9.0.0/",
+      "frequency": "A",
+      "unit": "percent annual real GDP growth",
+      "transformation": "none",
+      "geographic_coverage": "United States",
+      "start_date": "2010-04-15",
+      "release_calendar": {
+        "rule": "age_threshold",
+        "source": "April and October WEO rounds; current SDMX round may be newer",
+        "stale_after_days": 240
+      },
+      "publication_lag_days": null,
+      "revision_policy": "Each cached round is retained; current SDMX endpoint exposes only the latest round",
+      "seasonal_adjustment_status": "not applicable",
+      "vintage_availability": "Historical WEO rounds from DBnomics plus current IMF SDMX round",
+      "expected_update_frequency": "semiannual",
+      "current_availability_status": null,
+      "ingestion_script": "sources/imf.py",
+      "downstream_models": [
+        "United States SPF-WEO block",
+        "Peru conditional BVAR"
+      ],
+      "fallback_source": "Philadelphia Fed SPF at short horizons",
+      "validation_rules": {
+        "unique_periods": false,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -20,
+          20
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Historical release dates are approximated as the fifteenth of the round month",
+        "The current round and historical archive use different transports"
+      ],
+      "monitor": {
+        "type": "tabular_file",
+        "path": "input/imf/weo_vintages.parquet",
+        "column": "value",
+        "date_column": "release_date",
+        "filters": {
+          "iso": "USA",
+          "subject": "NGDP_RPCH"
+        }
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "China real GDP growth",
+      "internal_code": "gdp_yoy",
+      "provider_code": "gdp_real_yoy",
+      "source_institution": "National Bureau of Statistics of China, with OECD fallback",
+      "source_url": "https://www.stats.gov.cn/sj/zxfb/",
+      "frequency": "Q",
+      "unit": "percent year over year",
+      "transformation": "none, source publishes growth",
+      "geographic_coverage": "China",
+      "start_date": "1993-03-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "assumed scalar lag in targets/china.py"
+      },
+      "publication_lag_days": 18,
+      "revision_policy": "NBS may revise history; current snapshots overwrite prior values",
+      "seasonal_adjustment_status": "not applicable to year-over-year growth",
+      "vintage_availability": "Current snapshot plus prospective run snapshots; no full NBS vintage database",
+      "expected_update_frequency": "quarterly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py and targets/china.py",
+      "downstream_models": [
+        "China nowcast ladder",
+        "China forecast profile",
+        "China GDP-to-IP bridge for Peru"
+      ],
+      "fallback_source": "OECD SDMX and frozen CSV",
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -15,
+          25
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Historical backtests use latest-revised values",
+        "The published forecast profile is currently loaded from a notebook cache rather than recomputed live"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "china",
+        "frame": "quarterly",
+        "column": "gdp_yoy",
+        "path": "input/china/china_quarterly_modeling.csv"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "China industrial production growth",
+      "internal_code": "ip_cum_yoy",
+      "provider_code": "industrial_value_added_cum_yoy",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "M",
+      "unit": "percent year over year",
+      "transformation": "de-cumulated from year-to-date growth and clipped to plus or minus 60 percent",
+      "geographic_coverage": "China",
+      "start_date": "1978-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "assumed scalar lag in targets/china.py"
+      },
+      "publication_lag_days": 15,
+      "revision_policy": "Current NBS snapshot; fresh values overwrite prior cells",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "No source-vintage archive used in model evaluation",
+      "expected_update_frequency": "monthly except the combined January-February release",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py and targets/china.py",
+      "downstream_models": [
+        "China Bridge(activity)",
+        "China P-MIDAS(leaders)",
+        "China D-ARX",
+        "China BVAR",
+        "commodity BVAR",
+        "Peru conditional BVAR"
+      ],
+      "fallback_source": "frozen CSV snapshot",
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -60,
+          60
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "January is backfilled from February before release masking, which can leak February information",
+        "The de-cumulation approximation is not benchmarked against monthly levels",
+        "NBS response caches can persist indefinitely when refresh is false"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "china",
+        "frame": "monthly",
+        "column": "ip_cum_yoy",
+        "path": "input/china/nbs_monthly_history.csv"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "China retail sales growth",
+      "internal_code": "retail_sales_yoy",
+      "provider_code": "retail_sales_yoy",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "M",
+      "unit": "percent year over year",
+      "transformation": "none, source publishes current-month growth",
+      "geographic_coverage": "China",
+      "start_date": "1978-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "assumed scalar lag in targets/china.py"
+      },
+      "publication_lag_days": 15,
+      "revision_policy": "Current NBS snapshot; fresh values overwrite prior cells",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "No historical source vintages",
+      "expected_update_frequency": "monthly except the combined January-February release",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py and targets/china.py",
+      "downstream_models": [
+        "China Bridge(activity)"
+      ],
+      "fallback_source": "frozen CSV snapshot",
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -60,
+          60
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "January backfill has the same release-timing problem as other NBS monthly series"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "china",
+        "frame": "monthly",
+        "column": "retail_sales_yoy",
+        "path": "input/china/nbs_monthly_history.csv"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "China electricity output growth",
+      "internal_code": "electricity_output_yoy",
+      "provider_code": "electricity_output_yoy",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "M",
+      "unit": "percent year over year",
+      "transformation": "none, source publishes current-month growth",
+      "geographic_coverage": "China",
+      "start_date": "1978-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "assumed scalar lag in targets/china.py"
+      },
+      "publication_lag_days": 15,
+      "revision_policy": "Current NBS snapshot",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "No historical source vintages",
+      "expected_update_frequency": "monthly except the combined January-February release",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py and targets/china.py",
+      "downstream_models": [
+        "China Bridge(activity)"
+      ],
+      "fallback_source": "frozen CSV snapshot",
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -60,
+          60
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Publication delay is absent from sources/catalog.csv and duplicated in target code"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "china",
+        "frame": "monthly",
+        "column": "electricity_output_yoy",
+        "path": "input/china/nbs_monthly_history.csv"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "China broad money growth",
+      "internal_code": "m2_yoy",
+      "provider_code": "m2_yoy",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "M",
+      "unit": "percent year over year",
+      "transformation": "none",
+      "geographic_coverage": "China",
+      "start_date": "1978-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "measured NBS portal behaviour: the portal republishes M2 roughly a quarter after the PBoC release; 13d was the PBoC lag, not this source's"
+      },
+      "publication_lag_days": 95,
+      "revision_policy": "Current snapshot",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "No historical source vintages",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py and targets/china.py",
+      "downstream_models": [
+        "China P-MIDAS(leaders)",
+        "China BVAR(3v)",
+        "China conditional BVAR"
+      ],
+      "fallback_source": "frozen CSV snapshot",
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -20,
+          40
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "The NBS portal is a LATE republication of PBoC M2 (about 95 days); a PBoC-direct loader would recover the 13-day timeliness",
+        "Publication delay is absent from the source catalog"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "china",
+        "frame": "monthly",
+        "column": "m2_yoy",
+        "path": "input/china/nbs_monthly_history.csv"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "China commercial property sales floor growth",
+      "internal_code": "property_sales_floor_cum_yoy",
+      "provider_code": "property_sales_floor_cum_yoy",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "M",
+      "unit": "percent year over year",
+      "transformation": "de-cumulated from year-to-date growth and clipped to plus or minus 60 percent",
+      "geographic_coverage": "China",
+      "start_date": "1978-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "assumed scalar lag in targets/china.py"
+      },
+      "publication_lag_days": 15,
+      "revision_policy": "Current NBS snapshot",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "No historical source vintages",
+      "expected_update_frequency": "monthly except the combined January-February release",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py and targets/china.py",
+      "downstream_models": [
+        "China P-MIDAS(leaders)"
+      ],
+      "fallback_source": "frozen CSV snapshot",
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -60,
+          60
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "De-cumulation and January timing require vintage-aware validation"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "china",
+        "frame": "monthly",
+        "column": "property_sales_floor_cum_yoy",
+        "path": "input/china/nbs_monthly_history.csv"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "IMF WEO real GDP forecast, China",
+      "internal_code": "weo_china_ngdp_rpch",
+      "provider_code": "CHN.NGDP_RPCH",
+      "source_institution": "International Monetary Fund via IMF SDMX and DBnomics",
+      "source_url": "https://api.imf.org/external/sdmx/3.0/data/dataflow/IMF.RES/WEO/9.0.0/",
+      "frequency": "A",
+      "unit": "percent annual real GDP growth",
+      "transformation": "annual path is used to tilt the quarterly China forecast",
+      "geographic_coverage": "China",
+      "start_date": "2010-04-15",
+      "release_calendar": {
+        "rule": "age_threshold",
+        "source": "April and October WEO rounds; current SDMX round may be newer",
+        "stale_after_days": 240
+      },
+      "publication_lag_days": null,
+      "revision_policy": "Each historical round is retained; current SDMX endpoint exposes only the latest round",
+      "seasonal_adjustment_status": "not applicable",
+      "vintage_availability": "Historical WEO rounds plus current live round",
+      "expected_update_frequency": "semiannual",
+      "current_availability_status": null,
+      "ingestion_script": "sources/imf.py",
+      "downstream_models": [
+        "China quarterly forecast blend",
+        "Peru China-to-IP conditioning path"
+      ],
+      "fallback_source": "China model-only path",
+      "validation_rules": {
+        "unique_periods": false,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -20,
+          20
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Historical release dates are approximate",
+        "The published China path is currently a stale notebook cache even when the WEO stamp is current"
+      ],
+      "monitor": {
+        "type": "tabular_file",
+        "path": "input/imf/weo_vintages.parquet",
+        "column": "value",
+        "date_column": "release_date",
+        "filters": {
+          "iso": "CHN",
+          "subject": "NGDP_RPCH"
+        }
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "Copper price growth",
+      "internal_code": "g_copper",
+      "provider_code": "PCOPPUSDM",
+      "source_institution": "IMF Primary Commodity Prices via FRED",
+      "source_url": "https://fred.stlouisfed.org/series/PCOPPUSDM",
+      "frequency": "M",
+      "unit": "percent year over year, arithmetic change",
+      "transformation": "100 times monthly average price divided by its twelve-month lag minus one",
+      "geographic_coverage": "global benchmark, United States dollars per metric ton",
+      "start_date": "1993-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "assumed commodity delay in targets/commodities.py"
+      },
+      "publication_lag_days": 15,
+      "revision_policy": "Monthly source may be revised; current cache overwrites prior history",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "Current monthly cache plus prospective run snapshots",
+      "expected_update_frequency": "monthly, with BCRP daily flash values",
+      "current_availability_status": null,
+      "ingestion_script": "sources/commodities.py",
+      "downstream_models": [
+        "Terms-of-trade monthly BVAR"
+      ],
+      "fallback_source": "BCRP daily and monthly copper quotations",
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -100,
+          250
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "The refresh can overwrite the combined cache with FRED-only columns when the BCRP sub-fetch fails"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "pe_tot",
+        "frame": "monthly",
+        "column": "g_copper",
+        "path": "input/commodities/commodities_monthly.parquet"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "WTI crude oil price growth",
+      "internal_code": "g_wti",
+      "provider_code": "POILWTIUSDM",
+      "source_institution": "IMF Primary Commodity Prices via FRED",
+      "source_url": "https://fred.stlouisfed.org/series/POILWTIUSDM",
+      "frequency": "M",
+      "unit": "percent year over year, arithmetic change",
+      "transformation": "100 times monthly average price divided by its twelve-month lag minus one",
+      "geographic_coverage": "global benchmark, United States dollars per barrel",
+      "start_date": "1993-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "assumed commodity delay in targets/commodities.py"
+      },
+      "publication_lag_days": 15,
+      "revision_policy": "Monthly source may be revised",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "Current monthly cache plus prospective run snapshots",
+      "expected_update_frequency": "monthly, with BCRP daily flash values",
+      "current_availability_status": null,
+      "ingestion_script": "sources/commodities.py",
+      "downstream_models": [
+        "Terms-of-trade monthly BVAR"
+      ],
+      "fallback_source": "BCRP daily WTI quotation",
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -200,
+          400
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Exact historical information-set vintages are not retained"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "pe_tot",
+        "frame": "monthly",
+        "column": "g_wti",
+        "path": "input/commodities/commodities_monthly.parquet"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "United States industrial production growth",
+      "internal_code": "g_us_indpro",
+      "provider_code": "INDPRO",
+      "source_institution": "Federal Reserve Board via FRED",
+      "source_url": "https://fred.stlouisfed.org/series/INDPRO",
+      "frequency": "M",
+      "unit": "percent year over year, arithmetic change",
+      "transformation": "100 times index divided by its twelve-month lag minus one",
+      "geographic_coverage": "United States",
+      "start_date": "1920-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "assumed scalar lag in targets/usa.py"
+      },
+      "publication_lag_days": 15,
+      "revision_policy": "Revisable; current FRED history",
+      "seasonal_adjustment_status": "official seasonally adjusted index",
+      "vintage_availability": "No ALFRED vintages in the current pipeline",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/us.py and targets/usa.py",
+      "downstream_models": [
+        "Terms-of-trade monthly BVAR"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -40,
+          40
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Historical values are revised rather than vintage-specific"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "pe_tot",
+        "frame": "monthly",
+        "column": "g_us_indpro",
+        "path": "input/us/us_monthly.parquet"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "United States equity volatility index",
+      "internal_code": "us_vix",
+      "provider_code": "VIXCLS",
+      "source_institution": "Chicago Board Options Exchange via FRED",
+      "source_url": "https://fred.stlouisfed.org/series/VIXCLS",
+      "frequency": "M",
+      "unit": "index, monthly average",
+      "transformation": "none",
+      "geographic_coverage": "United States financial market",
+      "start_date": "1990-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "assumed scalar lag in targets/commodities.py"
+      },
+      "publication_lag_days": 1,
+      "revision_policy": "Daily observations are aggregated by FRED; minor revisions possible",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "Current history only",
+      "expected_update_frequency": "daily source, monthly model input",
+      "current_availability_status": null,
+      "ingestion_script": "sources/us.py",
+      "downstream_models": [
+        "Terms-of-trade monthly BVAR"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          0,
+          100
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "The commodity block balances to the slowest series and then reconditions the ragged edge"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "pe_tot",
+        "frame": "monthly",
+        "column": "us_vix",
+        "path": "input/us/us_monthly.parquet"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "Peru official terms-of-trade index growth in the commodity block",
+      "internal_code": "g_pe_tot",
+      "provider_code": "PN38923BM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "percent year over year, arithmetic change",
+      "transformation": "100 times index divided by its twelve-month lag minus one",
+      "geographic_coverage": "Peru",
+      "start_date": "1997-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "assumed scalar lag in targets/commodities.py"
+      },
+      "publication_lag_days": 40,
+      "revision_policy": "Official index is revisable; current cache overwrites prior history",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "Current cache plus prospective run snapshots",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/commodities.py and targets/commodities.py",
+      "downstream_models": [
+        "Terms-of-trade monthly BVAR",
+        "Peru conditional BVAR through the satellite path"
+      ],
+      "fallback_source": "The legacy Peru panel contains the same official index as g_tdi",
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -80,
+          120
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Its arithmetic growth is passed into a Peru model trained on log growth",
+        "A partial BCRP fetch failure can remove this column from the cache"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "pe_tot",
+        "frame": "monthly",
+        "column": "g_pe_tot",
+        "path": "input/commodities/commodities_monthly.parquet"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "Peru terms-of-trade quarterly target",
+      "internal_code": "g_pe_tot_q",
+      "provider_code": "PN38923BM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "Q",
+      "unit": "percent year over year, arithmetic change of quarterly average",
+      "transformation": "complete three-month average, then 100 times the ratio to the four-quarter lag minus one",
+      "geographic_coverage": "Peru",
+      "start_date": "1997-03-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "assumed scalar lag in targets/commodities.py"
+      },
+      "publication_lag_days": 40,
+      "revision_policy": "Derived from the latest official monthly index",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "No historical source vintages",
+      "expected_update_frequency": "quarterly after all three monthly values are available",
+      "current_availability_status": null,
+      "ingestion_script": "targets/commodities.py",
+      "downstream_models": [
+        "Terms-of-trade block base quarter and evaluation target"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": [
+          -80,
+          120
+        ]
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "The production uncertainty is fitted to posterior predictive draws rather than historical real-time forecast errors"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "pe_tot",
+        "frame": "quarterly",
+        "column": "g_pe_tot_q",
+        "path": "input/commodities/commodities_monthly.parquet"
+      },
+      "required_for_publication": true
+    },
+    {
+      "variable_name": "Circulating currency",
+      "internal_code": "circ",
+      "provider_code": "PN00495MM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Millions of Soles",
+      "transformation": "one-period change of the level",
+      "geographic_coverage": "PE",
+      "start_date": "1994-02-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 40,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_circ",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Private credit in foreign currency",
+      "internal_code": "credme",
+      "provider_code": "PN00499MM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Millions of Dollars",
+      "transformation": "one-period change of the level",
+      "geographic_coverage": "PE",
+      "start_date": "1995-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 22,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_credme",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Private credit in local currency",
+      "internal_code": "credmn",
+      "provider_code": "PN00496MM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Millions of Soles",
+      "transformation": "one-period change of the level",
+      "geographic_coverage": "PE",
+      "start_date": "1995-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 22,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_credmn",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Electricity production",
+      "internal_code": "elec",
+      "provider_code": "PD37966AM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "GWH",
+      "transformation": "annualized one-month change",
+      "geographic_coverage": "PE",
+      "start_date": "1997-08-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 51,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_elec",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "EMBIG Latin America",
+      "internal_code": "embig_lac",
+      "provider_code": "PN01137XM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Basis points",
+      "transformation": "none, used as published",
+      "geographic_coverage": "PE",
+      "start_date": "2006-08-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 3,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "embig_lac",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "EMBIG Peru",
+      "internal_code": "embig_per",
+      "provider_code": "PN01129XM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Basis points",
+      "transformation": "none, used as published",
+      "geographic_coverage": "PE",
+      "start_date": "2006-08-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 3,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "embig_per",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Primary issuance",
+      "internal_code": "emiprim",
+      "provider_code": "PN00489MM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Millions of Soles",
+      "transformation": "annualized one-month change",
+      "geographic_coverage": "PE",
+      "start_date": "1994-02-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 10,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_emiprim",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Current business conditions",
+      "internal_code": "exp_act",
+      "provider_code": "PD38044AM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Diffusion index",
+      "transformation": "none, used as published",
+      "geographic_coverage": "PE",
+      "start_date": "2008-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 7,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Standardize"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "exp_act",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Economy expectations, 12 months",
+      "internal_code": "exp_eco12m",
+      "provider_code": "PD37981AM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Diffusion index",
+      "transformation": "none, used as published",
+      "geographic_coverage": "PE",
+      "start_date": "2008-06-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 7,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Standardize"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "exp_eco12m",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Non-traditional exports",
+      "internal_code": "exp_nt",
+      "provider_code": "PN38716BM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "USD millions",
+      "transformation": "annualized one-month change",
+      "geographic_coverage": "PE",
+      "start_date": "2012-02-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 40,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Consider seasonal/calendar effects."
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_exp_nt",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Purchase orders index",
+      "internal_code": "exp_ord",
+      "provider_code": "PD38043AM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Diffusion index",
+      "transformation": "none, used as published",
+      "geographic_coverage": "PE",
+      "start_date": "2004-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 7,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Standardize"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "exp_ord",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "GDP expectations, 12 months",
+      "internal_code": "exp_pbi12m",
+      "provider_code": "PD38048AM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "YoY %",
+      "transformation": "none, used as published",
+      "geographic_coverage": "PE",
+      "start_date": "2006-12-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 7,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Confirm whether the published series is a level expectation or an index."
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "exp_pbi12m",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Sector expectations, 12 months",
+      "internal_code": "exp_sec12m",
+      "provider_code": "PD39752AM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Diffusion index",
+      "transformation": "none, used as published",
+      "geographic_coverage": "PE",
+      "start_date": "2009-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 7,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Standardize"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "exp_sec12m",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Traditional exports",
+      "internal_code": "exp_t",
+      "provider_code": "PN38715BM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "USD millions",
+      "transformation": "annualized one-month change",
+      "geographic_coverage": "PE",
+      "start_date": "2012-02-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 40,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Consider seasonal/calendar effects."
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_exp_t",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Sales index",
+      "internal_code": "exp_ven",
+      "provider_code": "PD38041AM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Diffusion index",
+      "transformation": "none, used as published",
+      "geographic_coverage": "PE",
+      "start_date": "2004-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 7,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Standardize"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "exp_ven",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Gross Fixed Capital Formation",
+      "internal_code": "fis_fbk",
+      "provider_code": "PN38635FM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Thousands of Soles, Constant Prices",
+      "transformation": "100 times the twelve-period ratio change of the level",
+      "geographic_coverage": "PE",
+      "start_date": "2007-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 17,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_fis_fbk",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Primary Balance",
+      "internal_code": "fis_rp",
+      "provider_code": "PN38656FM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Thousands of Soles, Constant Prices",
+      "transformation": "100 times the twelve-period ratio change of the level",
+      "geographic_coverage": "PE",
+      "start_date": "2007-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 17,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_fis_rp",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Fiscal Transfers",
+      "internal_code": "fis_transf",
+      "provider_code": "PN38630FM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Thousands of Soles, Constant Prices",
+      "transformation": "100 times the twelve-period ratio change of the level",
+      "geographic_coverage": "PE",
+      "start_date": "2007-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 17,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_fis_transf",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Consumer-goods imports",
+      "internal_code": "imp_bc",
+      "provider_code": "PN38719BM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "USD millions",
+      "transformation": "annualized one-month change",
+      "geographic_coverage": "PE",
+      "start_date": "2012-02-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 40,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_imp_bc",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Capital-goods imports",
+      "internal_code": "imp_bk",
+      "provider_code": "PN38721BM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "USD millions",
+      "transformation": "annualized one-month change",
+      "geographic_coverage": "PE",
+      "start_date": "2012-02-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 40,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_imp_bk",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Intermediate-input imports",
+      "internal_code": "imp_ins",
+      "provider_code": "PN38720BM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "USD millions",
+      "transformation": "annualized one-month change",
+      "geographic_coverage": "PE",
+      "start_date": "2012-02-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 40,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_imp_ins",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Interbank interest rate",
+      "internal_code": "int",
+      "provider_code": "PN07819NM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Percent",
+      "transformation": "none, used as published",
+      "geographic_coverage": "PE",
+      "start_date": "1995-10-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 10,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "int",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Consumer Price Index",
+      "internal_code": "ipc",
+      "provider_code": "PN38705PM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Index",
+      "transformation": "annualized one-month change",
+      "geographic_coverage": "PE",
+      "start_date": "1994-02-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 3,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_ipc",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Import price index",
+      "internal_code": "ipm",
+      "provider_code": "PN38919BM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Index",
+      "transformation": "annualized one-month change",
+      "geographic_coverage": "PE",
+      "start_date": "1996-02-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 40,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_ipm",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Export price index",
+      "internal_code": "ipx",
+      "provider_code": "PN38915BM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Index",
+      "transformation": "annualized one-month change",
+      "geographic_coverage": "PE",
+      "start_date": "1996-02-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 40,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_ipx",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Liquidity in dollars",
+      "internal_code": "liqme",
+      "provider_code": "PN00190MM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Millions of Dollars",
+      "transformation": "one-period change of the level",
+      "geographic_coverage": "PE",
+      "start_date": "1995-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 22,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_liqme",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Liquidity in soles",
+      "internal_code": "liqmn",
+      "provider_code": "PN00187MM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Millions of Soles",
+      "transformation": "one-period change of the level",
+      "geographic_coverage": "PE",
+      "start_date": "1995-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 22,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_liqmn",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Gold price",
+      "internal_code": "p_au",
+      "provider_code": "PN01654XM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Price level",
+      "transformation": "annualized one-month change",
+      "geographic_coverage": "PE",
+      "start_date": "2000-02-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 3,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_p_au",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Copper price",
+      "internal_code": "p_cu",
+      "provider_code": "PN01652XM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Price level",
+      "transformation": "annualized one-month change",
+      "geographic_coverage": "PE",
+      "start_date": "2000-02-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 3,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_p_cu",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "WTI oil price",
+      "internal_code": "p_wti",
+      "provider_code": "PN01660XM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Price level",
+      "transformation": "annualized one-month change",
+      "geographic_coverage": "PE",
+      "start_date": "2000-02-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 3,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_p_wti",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Domestic Oil Production",
+      "internal_code": "pbim_aceite",
+      "provider_code": "PN02034AM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Index",
+      "transformation": "annualized one-month change",
+      "geographic_coverage": "PE",
+      "start_date": "1994-02-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 51,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_pbim_aceite",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Anchoveta Landing",
+      "internal_code": "pbim_anchoveta",
+      "provider_code": "PN01848AM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Thousands of tons",
+      "transformation": "100 times the twelve-period ratio change of the level",
+      "geographic_coverage": "PE",
+      "start_date": "2004-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 51,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_pbim_anchoveta",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Rice Production",
+      "internal_code": "pbim_arroz",
+      "provider_code": "PN01778AM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Thousands of tons",
+      "transformation": "100 times the twelve-period ratio change of the level",
+      "geographic_coverage": "PE",
+      "start_date": "2008-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 51,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_pbim_arroz",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Poultry Production",
+      "internal_code": "pbim_ave",
+      "provider_code": "PN01800AM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Thousands of tons",
+      "transformation": "100 times the twelve-period ratio change of the level",
+      "geographic_coverage": "PE",
+      "start_date": "2004-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 51,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_pbim_ave",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Copper Production",
+      "internal_code": "pbim_cobre",
+      "provider_code": "PN01873AM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Thousands of units",
+      "transformation": "annualized one-month change",
+      "geographic_coverage": "PE",
+      "start_date": "2000-02-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 51,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_pbim_cobre",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Construction",
+      "internal_code": "pbim_const",
+      "provider_code": "PN01766AM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Index",
+      "transformation": "annualized one-month change",
+      "geographic_coverage": "PE",
+      "start_date": "1994-02-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 51,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_pbim_const",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Domestic demand",
+      "internal_code": "pbim_dem",
+      "provider_code": "PN01774AM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Index",
+      "transformation": "annualized one-month change",
+      "geographic_coverage": "PE",
+      "start_date": "2003-02-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 51,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_pbim_dem",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Natural Gas Production",
+      "internal_code": "pbim_gas",
+      "provider_code": "PN01884AM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Millions of cubic feets",
+      "transformation": "annualized one-month change",
+      "geographic_coverage": "PE",
+      "start_date": "2000-02-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 51,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_pbim_gas",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Manufacturing Production",
+      "internal_code": "pbim_manuf",
+      "provider_code": "PN01762AM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Index",
+      "transformation": "annualized one-month change",
+      "geographic_coverage": "PE",
+      "start_date": "1994-02-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 51,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_pbim_manuf",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Non-primary GDP",
+      "internal_code": "pbim_noprim",
+      "provider_code": "PN01772AM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Index",
+      "transformation": "annualized one-month change",
+      "geographic_coverage": "PE",
+      "start_date": "1994-02-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 51,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_pbim_noprim",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Potato Production",
+      "internal_code": "pbim_papa",
+      "provider_code": "PN01777AM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Thousands of tons",
+      "transformation": "100 times the twelve-period ratio change of the level",
+      "geographic_coverage": "PE",
+      "start_date": "2008-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 51,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_pbim_papa",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Primary GDP",
+      "internal_code": "pbim_prim",
+      "provider_code": "PN01771AM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Index",
+      "transformation": "annualized one-month change",
+      "geographic_coverage": "PE",
+      "start_date": "1994-02-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 51,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_pbim_prim",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Labor force",
+      "internal_code": "pea",
+      "provider_code": "PN38050GM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Thousands of persons",
+      "transformation": "100 times the twelve-period ratio change of the level",
+      "geographic_coverage": "PE",
+      "start_date": "2002-05-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 40,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Check geographic coverage and methodological breaks."
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_pea",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Underemployed labor force",
+      "internal_code": "pea_sub",
+      "provider_code": "PN38062GM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Thousands of persons",
+      "transformation": "100 times the twelve-period ratio change of the level",
+      "geographic_coverage": "PE",
+      "start_date": "2002-11-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 40,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Check geographic coverage and methodological breaks."
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_pea_sub",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Monthly labor income",
+      "internal_code": "salario",
+      "provider_code": "PN38070GM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Currency level",
+      "transformation": "100 times the twelve-period ratio change of the level",
+      "geographic_coverage": "PE",
+      "start_date": "2002-05-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 40,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Consider deflating if a real-income indicator is preferred."
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_salario",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Nominal exchange rate",
+      "internal_code": "tc",
+      "provider_code": "PN01210PM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Soles per Dollar",
+      "transformation": "one-period change of the level",
+      "geographic_coverage": "PE",
+      "start_date": "1995-02-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 10,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "g_tc",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Policy interest rate",
+      "internal_code": "tpm",
+      "provider_code": "PD04722MM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Percent",
+      "transformation": "none, used as published",
+      "geographic_coverage": "PE",
+      "start_date": "2003-09-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 0,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "Lower bound may be imposed in simulations."
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "tpm",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Unemployment rate",
+      "internal_code": "unem",
+      "provider_code": "PN38063GM",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "M",
+      "unit": "Percent",
+      "transformation": "none, used as published",
+      "geographic_coverage": "PE",
+      "start_date": "2001-05-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 40,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "unem",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Private Consumption",
+      "internal_code": "consq",
+      "provider_code": "PN02529AQ",
+      "source_institution": "Banco Central de Reserva del Peru",
+      "source_url": "https://estadisticas.bcrp.gob.pe/estadisticas/series/api",
+      "frequency": "Q",
+      "unit": "Millions of Soles 2007=100",
+      "transformation": "annualized one-quarter change",
+      "geographic_coverage": "PE",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 51,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "quarterly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/bcrp.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Federal Funds Rate",
+      "internal_code": "fed",
+      "provider_code": "DFF",
+      "source_institution": "Federal Reserve Bank of St. Louis (FRED)",
+      "source_url": "https://api.stlouisfed.org/fred/series/observations",
+      "frequency": "M",
+      "unit": "Percent",
+      "transformation": "none, used as published",
+      "geographic_coverage": "US",
+      "start_date": "1994-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 1,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/fred.py",
+      "downstream_models": [
+        "Peru nowcast ladder",
+        "Peru research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "target_panel",
+        "target": "peru_gdp",
+        "frame": "monthly",
+        "column": "fed",
+        "path": "input/peru/monthly_panel_spec3.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "consumo_cemento",
+      "internal_code": "inei_consumo_cemento",
+      "provider_code": "consumo_cemento",
+      "source_institution": "Instituto Nacional de Estadistica e Informatica",
+      "source_url": "https://www.inei.gob.pe/biblioteca-virtual/boletines/",
+      "frequency": "M",
+      "unit": "Index",
+      "transformation": "none, used as published",
+      "geographic_coverage": "PE",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 31,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "undeclared in the catalog",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/inei.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "gasto_consumo_gg",
+      "internal_code": "inei_gasto_consumo_gg",
+      "provider_code": "gasto_consumo_gg",
+      "source_institution": "Instituto Nacional de Estadistica e Informatica",
+      "source_url": "https://www.inei.gob.pe/biblioteca-virtual/boletines/",
+      "frequency": "M",
+      "unit": "Index",
+      "transformation": "none, used as published",
+      "geographic_coverage": "PE",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 31,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/inei.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "gasto_inversion_gg",
+      "internal_code": "inei_gasto_inversion_gg",
+      "provider_code": "gasto_inversion_gg",
+      "source_institution": "Instituto Nacional de Estadistica e Informatica",
+      "source_url": "https://www.inei.gob.pe/biblioteca-virtual/boletines/",
+      "frequency": "M",
+      "unit": "Index",
+      "transformation": "none, used as published",
+      "geographic_coverage": "PE",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 31,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/inei.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "igv_interno",
+      "internal_code": "inei_igv_interno",
+      "provider_code": "igv_interno",
+      "source_institution": "Instituto Nacional de Estadistica e Informatica",
+      "source_url": "https://www.inei.gob.pe/biblioteca-virtual/boletines/",
+      "frequency": "M",
+      "unit": "Index",
+      "transformation": "none, used as published",
+      "geographic_coverage": "PE",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 31,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/inei.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "imp_bienes_capital",
+      "internal_code": "inei_imp_bienes_capital",
+      "provider_code": "imp_bienes_capital",
+      "source_institution": "Instituto Nacional de Estadistica e Informatica",
+      "source_url": "https://www.inei.gob.pe/biblioteca-virtual/boletines/",
+      "frequency": "M",
+      "unit": "Index",
+      "transformation": "none, used as published",
+      "geographic_coverage": "PE",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 31,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/inei.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "imp_bienes_consumo",
+      "internal_code": "inei_imp_bienes_consumo",
+      "provider_code": "imp_bienes_consumo",
+      "source_institution": "Instituto Nacional de Estadistica e Informatica",
+      "source_url": "https://www.inei.gob.pe/biblioteca-virtual/boletines/",
+      "frequency": "M",
+      "unit": "Index",
+      "transformation": "none, used as published",
+      "geographic_coverage": "PE",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 31,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/inei.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "imp_materias_primas",
+      "internal_code": "inei_imp_materias_primas",
+      "provider_code": "imp_materias_primas",
+      "source_institution": "Instituto Nacional de Estadistica e Informatica",
+      "source_url": "https://www.inei.gob.pe/biblioteca-virtual/boletines/",
+      "frequency": "M",
+      "unit": "Index",
+      "transformation": "none, used as published",
+      "geographic_coverage": "PE",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 31,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/inei.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "prod_electricidad",
+      "internal_code": "inei_prod_electricidad",
+      "provider_code": "prod_electricidad",
+      "source_institution": "Instituto Nacional de Estadistica e Informatica",
+      "source_url": "https://www.inei.gob.pe/biblioteca-virtual/boletines/",
+      "frequency": "M",
+      "unit": "Index",
+      "transformation": "none, used as published",
+      "geographic_coverage": "PE",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 31,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/inei.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "venta_vehiculos",
+      "internal_code": "inei_venta_vehiculos",
+      "provider_code": "venta_vehiculos",
+      "source_institution": "Instituto Nacional de Estadistica e Informatica",
+      "source_url": "https://www.inei.gob.pe/biblioteca-virtual/boletines/",
+      "frequency": "M",
+      "unit": "Index",
+      "transformation": "none, used as published",
+      "geographic_coverage": "PE",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 31,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "requires seasonal adjustment (project X13 preprocess)",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/inei.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Grain output",
+      "internal_code": "grain_output",
+      "provider_code": "grain_output",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "A",
+      "unit": "\u4e07\u5428",
+      "transformation": "none, used as published",
+      "geographic_coverage": "CN",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": null,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "undeclared in the catalog",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "annual",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "portal_macro"
+      ],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Headline CPI index, same month last year equals 100",
+      "internal_code": "cpi_yoy",
+      "provider_code": "cpi_yoy",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "M",
+      "unit": "\u4e0a\u5e74\u540c\u6708=100",
+      "transformation": "none, used as published",
+      "geographic_coverage": "CN",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": null,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "undeclared in the catalog",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "portal_stream"
+      ],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Fixed-asset investment, cumulative (year-to-date) year-on-year growth",
+      "internal_code": "fixed_asset_investment_yoy",
+      "provider_code": "fixed_asset_investment_yoy",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "M",
+      "unit": "%",
+      "transformation": "none, used as published",
+      "geographic_coverage": "CN",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": null,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "undeclared in the catalog",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "portal_stream"
+      ],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Industrial value added growth, current month year-on-year",
+      "internal_code": "industrial_value_added_yoy",
+      "provider_code": "industrial_value_added_yoy",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "M",
+      "unit": "%",
+      "transformation": "none, used as published",
+      "geographic_coverage": "CN",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": null,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "undeclared in the catalog",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "portal_stream"
+      ],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Official manufacturing PMI",
+      "internal_code": "manufacturing_pmi",
+      "provider_code": "manufacturing_pmi",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "M",
+      "unit": "index",
+      "transformation": "none, used as published",
+      "geographic_coverage": "CN",
+      "start_date": "2005-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 0,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "undeclared in the catalog",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py",
+      "downstream_models": [
+        "China nowcast ladder",
+        "China research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "portal_stream"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "china",
+        "frame": "monthly",
+        "column": "manufacturing_pmi",
+        "path": "input/china/nbs_monthly_history.csv"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Official non-manufacturing (services) PMI, business activity index",
+      "internal_code": "non_manufacturing_pmi",
+      "provider_code": "non_manufacturing_pmi",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "M",
+      "unit": "index",
+      "transformation": "none, used as published",
+      "geographic_coverage": "CN",
+      "start_date": "2007-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 0,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "undeclared in the catalog",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py",
+      "downstream_models": [
+        "China nowcast ladder",
+        "China research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "portal_stream"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "china",
+        "frame": "monthly",
+        "column": "non_manufacturing_pmi",
+        "path": "input/china/nbs_monthly_history.csv"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Composite business confidence (OECD, PMI-style proxy)",
+      "internal_code": "oecd_business_confidence",
+      "provider_code": "oecd_business_confidence",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "M",
+      "unit": "percentage balance",
+      "transformation": "none, used as published",
+      "geographic_coverage": "CN",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": null,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "undeclared in the catalog",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "oecd_sdmx"
+      ],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Composite consumer confidence (OECD)",
+      "internal_code": "oecd_consumer_confidence",
+      "provider_code": "oecd_consumer_confidence",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "M",
+      "unit": "percentage balance",
+      "transformation": "none, used as published",
+      "geographic_coverage": "CN",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": null,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "undeclared in the catalog",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "oecd_sdmx"
+      ],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Consumer price inflation, year-on-year (OECD)",
+      "internal_code": "oecd_cpi_yoy",
+      "provider_code": "oecd_cpi_yoy",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "M",
+      "unit": "%",
+      "transformation": "none, used as published",
+      "geographic_coverage": "CN",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": null,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "undeclared in the catalog",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "oecd_sdmx"
+      ],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Merchandise exports growth, year-on-year (OECD)",
+      "internal_code": "oecd_exports_yoy",
+      "provider_code": "oecd_exports_yoy",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "M",
+      "unit": "%",
+      "transformation": "none, used as published",
+      "geographic_coverage": "CN",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": null,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "undeclared in the catalog",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "oecd_sdmx"
+      ],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Monthly GDP reference series (OECD)",
+      "internal_code": "oecd_gdp_monthly_ref",
+      "provider_code": "oecd_gdp_monthly_ref",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "M",
+      "unit": "index",
+      "transformation": "none, used as published",
+      "geographic_coverage": "CN",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": null,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "undeclared in the catalog",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "oecd_sdmx"
+      ],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Merchandise imports growth, year-on-year (OECD)",
+      "internal_code": "oecd_imports_yoy",
+      "provider_code": "oecd_imports_yoy",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "M",
+      "unit": "%",
+      "transformation": "none, used as published",
+      "geographic_coverage": "CN",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": null,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "undeclared in the catalog",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "oecd_sdmx"
+      ],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Composite Leading Indicator (OECD)",
+      "internal_code": "oecd_leading_indicator",
+      "provider_code": "oecd_leading_indicator",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "M",
+      "unit": "index (100=trend)",
+      "transformation": "none, used as published",
+      "geographic_coverage": "CN",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": null,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "undeclared in the catalog",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "oecd_sdmx"
+      ],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Headline PPI index, same month last year equals 100",
+      "internal_code": "ppi_yoy",
+      "provider_code": "ppi_yoy",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "M",
+      "unit": "\u4e0a\u5e74\u540c\u6708=100",
+      "transformation": "none, used as published",
+      "geographic_coverage": "CN",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": null,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "undeclared in the catalog",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "portal_stream"
+      ],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Real estate development investment, cumulative year-on-year growth",
+      "internal_code": "real_estate_investment_cum_yoy",
+      "provider_code": "real_estate_investment_cum_yoy",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "M",
+      "unit": "%",
+      "transformation": "none, used as published",
+      "geographic_coverage": "CN",
+      "start_date": "2000-02-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 15,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "undeclared in the catalog",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py",
+      "downstream_models": [
+        "China nowcast ladder",
+        "China research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "portal_stream"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "china",
+        "frame": "monthly",
+        "column": "real_estate_investment_cum_yoy",
+        "path": "input/china/nbs_monthly_history.csv"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Retail sales of consumer goods, nominal level",
+      "internal_code": "retail_sales_nominal",
+      "provider_code": "retail_sales_nominal",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "M",
+      "unit": "\u4ebf\u5143",
+      "transformation": "none, used as published",
+      "geographic_coverage": "CN",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": null,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "undeclared in the catalog",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "portal_macro"
+      ],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Quarterly GDP at current prices",
+      "internal_code": "gdp_current_price",
+      "provider_code": "gdp_current_price",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "Q",
+      "unit": "\u4ebf\u5143",
+      "transformation": "none, used as published",
+      "geographic_coverage": "CN",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": null,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "undeclared in the catalog",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "quarterly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "portal_macro"
+      ],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Real GDP growth, quarter-on-quarter, seasonally adjusted",
+      "internal_code": "gdp_real_qoq_sa",
+      "provider_code": "gdp_real_qoq_sa",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "Q",
+      "unit": "%",
+      "transformation": "none, used as published",
+      "geographic_coverage": "CN",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": null,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "undeclared in the catalog",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "quarterly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "gdp_release"
+      ],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Real GDP growth, year-on-year (offline snapshot)",
+      "internal_code": "gdp_real_yoy_offline",
+      "provider_code": "gdp_real_yoy_offline",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "Q",
+      "unit": "%",
+      "transformation": "none, used as published",
+      "geographic_coverage": "CN",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": null,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "undeclared in the catalog",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "quarterly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "frozen_csv"
+      ],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Real GDP growth, quarter-on-quarter, seasonally adjusted (OECD)",
+      "internal_code": "oecd_gdp_real_qoq_sa",
+      "provider_code": "oecd_gdp_real_qoq_sa",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "Q",
+      "unit": "%",
+      "transformation": "none, used as published",
+      "geographic_coverage": "CN",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": null,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "undeclared in the catalog",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "quarterly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "oecd_sdmx"
+      ],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Real GDP growth, year-on-year (OECD)",
+      "internal_code": "oecd_gdp_real_yoy",
+      "provider_code": "oecd_gdp_real_yoy",
+      "source_institution": "National Bureau of Statistics of China",
+      "source_url": "https://data.stats.gov.cn/dg/website/page.html#/pc/national/home",
+      "frequency": "Q",
+      "unit": "%",
+      "transformation": "none, used as published",
+      "geographic_coverage": "CN",
+      "start_date": null,
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": null,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "undeclared in the catalog",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "quarterly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/nbs.py",
+      "downstream_models": [
+        "catalog only"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "oecd_sdmx"
+      ],
+      "monitor": {
+        "type": "none"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "US unemployment rate",
+      "internal_code": "us_unrate",
+      "provider_code": "UNRATE",
+      "source_institution": "Federal Reserve Bank of St. Louis (FRED)",
+      "source_url": "https://api.stlouisfed.org/fred/series/observations",
+      "frequency": "M",
+      "unit": "%",
+      "transformation": "none, used as published",
+      "geographic_coverage": "US",
+      "start_date": "1948-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 7,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/fred.py",
+      "downstream_models": [
+        "United States block",
+        "US research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "US external block (sources/us.py)"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "usa",
+        "frame": "monthly",
+        "column": "us_unrate",
+        "path": "input/us/us_monthly.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "US yield-curve slope 10y-3m",
+      "internal_code": "us_curve_10y3m",
+      "provider_code": "T10Y3M",
+      "source_institution": "Federal Reserve Bank of St. Louis (FRED)",
+      "source_url": "https://api.stlouisfed.org/fred/series/observations",
+      "frequency": "M",
+      "unit": "pp",
+      "transformation": "none, used as published",
+      "geographic_coverage": "US",
+      "start_date": "1982-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 1,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/fred.py",
+      "downstream_models": [
+        "United States block",
+        "US research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "US external block (sources/us.py)"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "usa",
+        "frame": "monthly",
+        "column": "us_curve_10y3m",
+        "path": "input/us/us_monthly.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "US broad dollar index",
+      "internal_code": "us_dollar_broad",
+      "provider_code": "DTWEXBGS",
+      "source_institution": "Federal Reserve Bank of St. Louis (FRED)",
+      "source_url": "https://api.stlouisfed.org/fred/series/observations",
+      "frequency": "M",
+      "unit": "index",
+      "transformation": "none, used as published",
+      "geographic_coverage": "US",
+      "start_date": "2006-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 1,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/fred.py",
+      "downstream_models": [
+        "United States block",
+        "US research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "US external block (sources/us.py)"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "usa",
+        "frame": "monthly",
+        "column": "us_dollar_broad",
+        "path": "input/us/us_monthly.parquet"
+      },
+      "required_for_publication": false
+    },
+    {
+      "variable_name": "Chicago Fed NFCI",
+      "internal_code": "us_nfci",
+      "provider_code": "NFCI",
+      "source_institution": "Federal Reserve Bank of St. Louis (FRED)",
+      "source_url": "https://api.stlouisfed.org/fred/series/observations",
+      "frequency": "M",
+      "unit": "index",
+      "transformation": "none, used as published",
+      "geographic_coverage": "US",
+      "start_date": "1971-01-01",
+      "release_calendar": {
+        "rule": "period_end_plus_lag",
+        "source": "sources/catalog.csv reconciled with target-module DELAYS"
+      },
+      "publication_lag_days": 7,
+      "revision_policy": "latest-revised snapshot; no source-vintage archive",
+      "seasonal_adjustment_status": "not seasonally adjusted",
+      "vintage_availability": "run snapshots only",
+      "expected_update_frequency": "monthly",
+      "current_availability_status": null,
+      "ingestion_script": "sources/fred.py",
+      "downstream_models": [
+        "United States block",
+        "US research panel"
+      ],
+      "fallback_source": null,
+      "validation_rules": {
+        "unique_periods": true,
+        "monotonic_periods": true,
+        "allow_all_missing": false,
+        "plausible_range": null
+      },
+      "last_successful_refresh": null,
+      "known_issues": [
+        "US external block (sources/us.py)"
+      ],
+      "monitor": {
+        "type": "target_panel",
+        "target": "usa",
+        "frame": "monthly",
+        "column": "us_nfci",
+        "path": "input/us/us_monthly.parquet"
+      },
+      "required_for_publication": false
+    }
+  ]
+}

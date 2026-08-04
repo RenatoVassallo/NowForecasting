@@ -26,7 +26,8 @@ import numpy as np
 from scipy.optimize import least_squares
 from scipy.stats import norm
 
-__all__ = ["tpn_quantile", "fit_tpn", "fit_tpn_smooth", "tpn_bands"]
+__all__ = ["tpn_quantile", "fit_tpn", "fit_tpn_smooth",
+           "tpn_equal_tailed_bands", "tpn_bands"]
 
 
 def tpn_quantile(p, mode: float, sigma1: float, sigma2: float):
@@ -73,12 +74,14 @@ def fit_tpn(errors, probs=(0.10, 0.25, 0.75, 0.90)):
             "skew": float(s2 - s1), "n": int(e.size)}
 
 
-def tpn_bands(centre, params, levels=(0.30, 0.60, 0.90)):
-    """Central-probability bands from fitted two-piece normal parameters.
+def tpn_equal_tailed_bands(centre, params, levels=(0.30, 0.60, 0.90)):
+    """EQUAL-TAILED central bands from two-piece-normal parameters.
 
-    ``centre`` is the point forecast per horizon and ``params`` the per-horizon
-    fit. Returns {level: (lo, hi)} arrays. Levels follow the BoE convention of
-    equal-probability bands around the mode rather than a 50/70/90 split.
+    Each level puts (1-level)/2 probability in each tail. This is NOT the
+    production convention: the published fan uses SHORTEST (equal-density)
+    intervals around the mode from ``forecast.fan_mc.tpn_shortest_bands``.
+    For a skewed distribution the two conventions give different intervals
+    with the same nominal coverage; never mix them in one table.
     """
 
     centre = np.asarray(centre, dtype=float)
@@ -98,7 +101,8 @@ def tpn_bands(centre, params, levels=(0.30, 0.60, 0.90)):
     return out
 
 
-def fit_tpn_smooth(errors_by_h: dict, probs=(0.10, 0.25, 0.75, 0.90)):
+def fit_tpn_smooth(errors_by_h: dict, probs=(0.10, 0.25, 0.75, 0.90),
+                   smoothing: str = "power"):
     """Stable per-horizon parameters, the way the BoE actually builds a fan.
 
     Fitting (mode, sigma1, sigma2) independently at each horizon on ~35 errors
@@ -112,8 +116,13 @@ def fit_tpn_smooth(errors_by_h: dict, probs=(0.10, 0.25, 0.75, 0.90)):
        pool them, then fit one two-piece normal with the mode fixed at zero. That
        gives the skew as a ratio, estimated on the whole sample rather than a
        thirtieth of it;
-    2. estimate the scale per horizon and smooth it with a power law in h, so
-       uncertainty grows monotonically as a fan should.
+    2. estimate the scale per horizon and smooth it: ``smoothing="power"`` fits
+       c * h^g (the default, for error profiles that genuinely open with h);
+       ``smoothing="monotone"`` takes the running maximum of the per-horizon
+       standard deviations instead. Use monotone for CONDITIONED models whose
+       errors are nearly flat in h with a genuine short-horizon dip - the power
+       law's forced opening would transfer width from the short horizons (where
+       information is real) to the middle, exactly the wrong reallocation.
 
     The mode stays at the model's central projection: no shift is applied, so the
     published number is the mode and the skew moves only the *mean*, which is the
@@ -148,22 +157,33 @@ def fit_tpn_smooth(errors_by_h: dict, probs=(0.10, 0.25, 0.75, 0.90)):
     sol = least_squares(resid, x0=[1.0, 1.0], bounds=([1e-3, 1e-3], [10, 10]))
     s1u, s2u = sol.x
 
-    # smooth the scale across horizons: c * h^gamma, gamma clipped so the fan
-    # always opens but never explodes
     hh = np.array([h for h in hs if h in sd], dtype=float)
     ss = np.array([sd[h] for h in hs if h in sd], dtype=float)
-    if hh.size < 2:
-        # a single horizon (e.g. the nowcast node) has nothing to smooth over
-        g, c = 0.0, float(ss[0]) / float(hh[0]) ** 0.0
+    if smoothing == "monotone":
+        # running maximum: honours a measured short-horizon dip, never lets the
+        # fan close with h
+        mono = dict(zip(hh, np.maximum.accumulate(ss)))
+        scale_at = lambda h: mono.get(h, float(np.maximum.accumulate(ss)[-1]))
+        g = 0.0
     else:
-        g = float(np.polyfit(np.log(hh), np.log(ss), 1)[0])
-        g = min(max(g, 0.0), 1.0)
-        c = float(np.exp(np.mean(np.log(ss) - g * np.log(hh))))
+        # c * h^gamma, gamma clipped so the fan always opens but never explodes
+        if hh.size < 2:
+            # a single horizon (e.g. the nowcast node) has nothing to smooth over
+            g, c = 0.0, float(ss[0]) / float(hh[0]) ** 0.0
+        else:
+            g = float(np.polyfit(np.log(hh), np.log(ss), 1)[0])
+            g = min(max(g, 0.0), 1.0)
+            c = float(np.exp(np.mean(np.log(ss) - g * np.log(hh))))
+        scale_at = lambda h: c * h ** g
 
     out = {}
     for h in hs:
-        k = c * h ** g
+        k = float(scale_at(h))
         out[h] = {"mode_shift": 0.0, "sigma1": s1u * k, "sigma2": s2u * k,
                   "skew": (s2u - s1u) * k, "n": int(pooled.size),
                   "scale": k, "gamma": g}
     return out
+
+
+# Backward-compatible alias; the explicit name is the API.
+tpn_bands = tpn_equal_tailed_bands

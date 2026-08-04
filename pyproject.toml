@@ -14,7 +14,7 @@ dependencies = [
   # numpy/pandas/scipy/scikit-learn/statsmodels/matplotlib/pyarrow transitively.
   # 0.2.2 carries GBTreesNowcaster, the information-index adaptive combination,
   # the two-block DFM and release_cycle_bands that domestic/peru_gdp uses.
-  "MIDAS @ https://github.com/RenatoVassallo/MIDAS/releases/download/0.2.2/midas-0.2.2-py3-none-any.whl",
+  "MIDAS @ https://github.com/RenatoVassallo/MIDAS/releases/download/0.2.3/midas-0.2.3-py3-none-any.whl",
   "MacroPy @ https://github.com/RenatoVassallo/MacroPy/releases/download/0.1.10/macropy-0.1.10-py3-none-any.whl",
   "openpyxl>=3.1",   # read metadata.xlsx / the harmonised database
   "pyarrow>=14",     # cached backtest results (parquet)

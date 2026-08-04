@@ -11,6 +11,17 @@ SAMPLE_FROM = 2010           # WEO vintages start here; a 10y window is WIDER (t
 ORIGIN_DAY = 50              # the SPF for the current quarter is out by day ~50
 
 
+def weo_at(weo: pd.Series, year: int) -> float:
+    """WEO annual value with the flat medium-term tail: a year beyond the
+    round's horizon takes the last projected year (the IMF convention); a
+    year before the first projection stays missing."""
+    if year in weo.index:
+        return float(weo.loc[year])
+    if len(weo.index) and year > int(max(weo.index)):
+        return float(weo.loc[max(weo.index)])
+    return float("nan")
+
+
 def _blend_weight(h: int) -> float:
     """SPF where it is decisively better, handing over to the WEO as it runs out."""
     return {1: 0.0, 2: 0.25, 3: 0.5, 4: 0.5, 5: 0.5}.get(h, 1.0)
@@ -41,10 +52,13 @@ def _spf_yoy(spf, saar, survey_q, hmax=8) -> dict:
     return out
 
 
-def build(**_) -> tuple[pd.DataFrame, list[str]]:
+def build(ctx=None, **_) -> tuple[pd.DataFrame, list[str]]:
     from forecast.fan_mc import fit_tpn_mle
+    from pipeline.lib.context import resolve_as_of
     from sources import imf
     from targets import usa
+
+    as_of = resolve_as_of(ctx)
 
     m, q, _ = usa.load_panel()
     realised = q[usa.TARGET].dropna(); realised.index = pd.PeriodIndex(realised.index, freq="Q")
@@ -66,7 +80,7 @@ def build(**_) -> tuple[pd.DataFrame, list[str]]:
             if tgt not in realised.index:
                 continue
             s_ = sp.get(tgt, np.nan)
-            w_ = float(weo.loc[tgt.year]) if tgt.year in weo.index else np.nan
+            w_ = weo_at(weo, tgt.year)
             a = _blend_weight(k)
             rule = ((1 - a) * s_ + a * w_ if np.isfinite(s_) and np.isfinite(w_)
                     else s_ if np.isfinite(s_) else w_)
@@ -84,8 +98,8 @@ def build(**_) -> tuple[pd.DataFrame, list[str]]:
         f["mode_shift"] = 0.0                     # the mode is the central projection
         fits[h] = f
 
-    # today's path
-    weo_now, rnd = imf.path("USA", pd.Timestamp.now())
+    # the run's live path
+    weo_now, rnd = imf.path("USA", as_of)
     sp_now = _spf_yoy(spf, saar, spf.index.max())
     last_q = realised.index.max()
     grid = [last_q + k for k in range(1, 9)]
@@ -93,7 +107,7 @@ def build(**_) -> tuple[pd.DataFrame, list[str]]:
     for k, tgt in enumerate(grid, start=1):
         a = _blend_weight(k)
         s_ = sp_now.get(tgt, np.nan)
-        w_ = float(weo_now.loc[tgt.year]) if tgt.year in weo_now.index else np.nan
+        w_ = weo_at(weo_now, tgt.year)
         if np.isfinite(s_) and np.isfinite(w_):
             centre.append((1 - a) * s_ + a * w_); src.append(f"SPF/WEO a={a:.2f}")
         elif np.isfinite(s_):
@@ -101,7 +115,7 @@ def build(**_) -> tuple[pd.DataFrame, list[str]]:
         else:
             centre.append(w_); src.append("WEO")
     df = fan_frame(grid, centre, [fits.get(h) for h in range(1, 9)], src)
-    stamp = information_stamp(usa.SPEC, grid[0])
+    stamp = information_stamp(usa.SPEC, grid[0], as_of=as_of)
     stamp["weo_round"] = rnd
     out = write(df, REPO / "products/blocks/us_path_uncertainty.csv", stamp)
     lines = [f"- **US**: {centre[0]:.2f}% next quarter, {centre[-1]:.2f}% at h=8 "

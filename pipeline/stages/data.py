@@ -36,11 +36,29 @@ def _prev_monthly(prev: Path | None, name: str):
 PROVIDERS = ("imf", "commodities")
 
 
-def _refresh_providers() -> list[str]:
+def _events_context(store):
+    """(registry, as_of, parser_version) for per-series event recording."""
+    from pipeline.lib.context import resolve_as_of
+    from pipeline.lib.data_availability import load_registry
+
+    ctx = getattr(store, "ctx", None)
+    try:
+        registry = load_registry()
+    except Exception:
+        registry = {"series": []}
+    return (registry, resolve_as_of(ctx),
+            getattr(ctx, "code_version", None))
+
+
+def _refresh_providers(store=None) -> list[str]:
     import importlib
 
+    from pipeline.lib import refresh_events as ev
+
+    registry, as_of, parser = _events_context(store)
     out = []
     for name in PROVIDERS:
+        codes = ev.codes_for(registry, provider=name)
         try:
             mod = importlib.import_module(f"sources.{name}")
             fn = getattr(mod, "refresh_current", None) or getattr(mod, "refresh", None)
@@ -49,21 +67,40 @@ def _refresh_providers() -> list[str]:
             if name == "imf" and hasattr(mod, "refresh"):
                 msgs = list(msgs) + list(mod.refresh())
             out += [f"{name}: {m}" if not m.lower().startswith(name) else m for m in msgs]
+            ev.record_batch(codes, "successfully_updated", as_of=as_of,
+                            detail="; ".join(msgs)[:400], parser_version=parser)
         except Exception as exc:
             out.append(f"{name}: refresh FAILED ({type(exc).__name__}: {exc}); using cache")
+            status = ("source_unavailable"
+                      if any(k in str(exc).lower() for k in
+                             ("timeout", "connection", "http", "unreachable", "503", "502"))
+                      else "ingestion_failure")
+            ev.record_batch(codes, status, as_of=as_of,
+                            detail=f"{type(exc).__name__}: {exc}", parser_version=parser)
     return out
 
 
-def _refresh_target(name: str) -> list[str]:
+def _refresh_target(name: str, store=None) -> list[str]:
     """Run the target's own refresh hook (see targets/<name>.py:refresh)."""
     import importlib
+
+    from pipeline.lib import refresh_events as ev
+
+    registry, as_of, parser = _events_context(store)
+    codes = ev.codes_for(registry, target=name)
     try:
         mod = importlib.import_module(f"targets.{name}")
         fn = getattr(mod, "refresh", None)
         if fn is None:
             return ["no refresh hook; using committed data"]
-        return fn()
+        msgs = fn()
+        ev.record_batch(codes, "successfully_updated", as_of=as_of,
+                        detail="; ".join(str(m) for m in msgs)[:400],
+                        parser_version=parser)
+        return msgs
     except Exception as exc:
+        ev.record_batch(codes, "ingestion_failure", as_of=as_of,
+                        detail=f"{type(exc).__name__}: {exc}", parser_version=parser)
         return [f"refresh FAILED ({type(exc).__name__}: {exc}); using committed data"]
 
 
@@ -74,13 +111,13 @@ def run(store, params) -> tuple[dict, str]:
     refresh_msgs: dict[str, list[str]] = {}
     if getattr(params, "REFRESH_DATA", False):
         print("    [data] refreshing providers (IMF WEO, commodities) ...", flush=True)
-        refresh_msgs["providers"] = _refresh_providers()
+        refresh_msgs["providers"] = _refresh_providers(store)
         for m in refresh_msgs["providers"]:
             print(f"      {m}", flush=True)
     if params.REFRESH_DATA:
         for name in enabled:
             print(f"    [data] refreshing {name} ...", flush=True)
-            refresh_msgs[name] = _refresh_target(name)
+            refresh_msgs[name] = _refresh_target(name, store)
             for m in refresh_msgs[name]:
                 print(f"      - {m}", flush=True)
 

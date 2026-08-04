@@ -38,13 +38,13 @@ TARGETS = {
     "p_copper": ("g_copper_q", "Copper price, quarterly avg YoY %", 15),
     "p_gold":   ("g_gold_q",   "Gold price, quarterly avg YoY %", 15),
     "p_wti":    ("g_wti_q",    "WTI crude, quarterly avg YoY %", 15),
-    "pe_px":    ("g_pe_px_q",  "Peru export price index, quarterly avg YoY %", 35),
-    "pe_tot":   ("g_pe_tot_q", "Peru terms of trade, quarterly avg YoY %", 35),
+    "pe_px":    ("g_pe_px_q",  "Peru export price index, quarterly avg YoY %", 40),
+    "pe_tot":   ("g_pe_tot_q", "Peru terms of trade, quarterly avg YoY %", 40),
 }
 
 # publication delays (days after the reference month)
 DELAYS = {"g_copper": 15, "g_gold": 15, "g_wti": 15, "g_silver": 15,
-          "g_pe_px": 35, "g_pe_pm": 35, "g_pe_tot": 35,
+          "g_pe_px": 40, "g_pe_pm": 40, "g_pe_tot": 40,
           "ip_cum_yoy": 15, "m2_yoy": 13,
           "g_us_indpro": 15, "us_cpi_yoy": 12, "us_fedfunds": 1, "us_vix": 1,
           "g_us_dollar": 1, "us_nfci": 7, "us_gdp_yoy_m": 30, "us_gdp_saar_m": 30,
@@ -77,16 +77,22 @@ def _monthly_block() -> pd.DataFrame:
 
     prices = src.load()
     prices.index = pd.DatetimeIndex(prices.index)
-    monthly = pd.DataFrame(index=prices.index)
+    cn_m, _, _ = cn.load_panel()
+    us_m, _, _ = usa.load_panel()
+
+    # The panel index is the UNION of all blocks. Anchoring on the price index
+    # alone silently truncated every faster series to the FRED metals' last
+    # month, so a published July VIX or US IP never reached the ToT model's
+    # ragged-edge conditioning (found by the availability preflight).
+    idx = prices.index.union(cn_m.index).union(us_m.index)
+    monthly = pd.DataFrame(index=idx)
     for raw, g in PRICES.items():
         if raw in prices.columns:
-            monthly[g] = 100.0 * (prices[raw] / prices[raw].shift(12) - 1.0)
-
-    cn_m, _, _ = cn.load_panel()
-    monthly = monthly.join(cn_m[CHINA_COLS].reindex(monthly.index))
-    us_m, _, _ = usa.load_panel()
+            monthly[g] = (100.0 * (prices[raw] / prices[raw].shift(12) - 1.0)
+                          ).reindex(idx)
+    monthly = monthly.join(cn_m[CHINA_COLS].reindex(idx))
     monthly = monthly.join(us_m[[c for c in US_COLS if c in us_m.columns]]
-                           .reindex(monthly.index))
+                           .reindex(idx))
     return monthly
 
 

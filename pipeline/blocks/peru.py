@@ -9,150 +9,227 @@ import io
 import numpy as np
 import pandas as pd
 
-from ._common import REPO, complete_quarters, fan_frame, information_stamp, write
+from ._common import (REPO, complete_quarters, fan_frame,
+                      fill_structural_january, information_stamp,
+                      released_first, write)
 
 SYSTEM = ["us_gdp_yoy_m", "ip_cum_yoy", "g_tdi", "exp_eco3m", "g_invq_m"]
 H = 8
+FAN_MC = {"n_scenarios": 150, "draws_per_scenario": 8, "seed": 11}
+
+
+def _empirical_fits(H, as_of):
+    """Published fan scales: the Phase 4 ADOPTED rule.
+
+    Sequential-symmetric calibration from errors KNOWABLE BEFORE ``as_of``
+    (legacy day-1/day-30 S1 backtests plus the exact-chain errors as they
+    accrue), fitted in ``pipeline.lib.fan_calibration.production_fits``. The
+    harness's base quarter is the just-ended unpublished one (our node 1), so
+    its horizon k-1 is our node k; day-1 and day-30 anchors interpolate by
+    the day this run publishes, as before.
+    """
+    from pipeline.lib.fan_calibration import production_fits
+
+    return production_fits(as_of, H=H - 1)
 
 
 def _panel(spec):
-    import sys
-    d = str(REPO / "notebooks/peru/forecast")
-    if d not in sys.path:
-        sys.path.insert(0, d)
-    from common import build_panel, make_cond, nowcast_lookup
+    from pipeline.blocks._peru_panel import (build_panel, make_cond,
+                                             nowcast_lookup)
     return build_panel(spec), make_cond, nowcast_lookup
 
 
-def build(blocks: dict | None = None, **_) -> tuple[pd.DataFrame, list[str], object]:
+def build(blocks: dict | None = None, ctx=None, **_) -> tuple[pd.DataFrame, list[str], object]:
     import forecast
     import targets
-    from forecast.boe_fan import fit_tpn_smooth
     from forecast.fan_mc import fit_tpn_mle
     from MIDAS.realtime import RealtimeEngine
-    from nowcast.release_cycle import (add_information_index, combine_release_cycle,
-                                       conditional_bands)
+    from pipeline.lib.context import resolve_as_of
     from targets import china as cn
 
     spec = targets.get("peru_gdp")
     (mm, quarterly, panel), make_cond, nowcast_lookup = _panel(spec)
     base = pd.Period(quarterly[spec.target].dropna().index.max(), freq="Q")
     grid = [base + h for h in range(1, H + 1)]
+    today = resolve_as_of(ctx)                 # the run's canonical as-of date
     blocks = blocks or {}
 
-    def load(name, fname):
-        p = blocks.get(name) or next((REPO / "products/blocks").glob(fname), None)
-        if p is None:
-            raise FileNotFoundError(f"{name} block has not published {fname}")
-        d = pd.read_csv(p); d["period"] = pd.PeriodIndex(d["quarter"], freq="Q")
+    # Satellite inputs come from THIS run, or from ONE validated prior bundle,
+    # never from unversioned global product files (pipeline.lib.bundle enforces
+    # as-of, hash, grid, registry and code-version coherence; partial current
+    # runs are set aside whole rather than mixed with old vintages).
+    from pipeline.config.params import RUNS_DIR
+    from pipeline.lib.bundle import resolve_block_paths
+    paths_map, bundle_meta = resolve_block_paths(blocks, RUNS_DIR, ctx=ctx)
+
+    def load(name):
+        d = pd.read_csv(paths_map[name])
+        d["period"] = pd.PeriodIndex(d["quarter"], freq="Q")
         return d.set_index("period")
 
-    us, china, tot = (load("usa", "us_path_uncertainty.csv"),
-                      load("china", "china_path_uncertainty.csv"),
-                      load("commodities", "tot_path_uncertainty.csv"))
+    us, china, tot = load("usa"), load("china"), load("commodities")
+
+    # Units contract: the ToT block publishes ARITHMETIC YoY of the official
+    # index, while this model's g_tdi regressor is LOG YoY of the same index
+    # (they differ by up to 6pp at current growth rates). Convert the centre
+    # exactly and the scale by the delta method BEFORE conditioning, so the
+    # live condition has the identical definition the model was trained on.
+    # The backtests never had this problem: they condition g_tdi from the
+    # panel itself, which is already in log units.
+    declared = str(tot["units"].iloc[0]) if "units" in tot.columns else "pct_yoy_arithmetic"
+    if declared != "pct_yoy_arithmetic":
+        raise ValueError(f"ToT block declares units {declared!r}; the Peru "
+                         "interface only accepts pct_yoy_arithmetic")
+    from ._common import arith_to_log_yoy
+    tot = tot.copy()
+    tot["centre"], tot["s"] = arith_to_log_yoy(
+        tot["centre"].to_numpy(dtype=float), tot["s"].to_numpy(dtype=float))
 
     # China arrives as GDP; the system uses industrial production
     cn_m, cn_q, _ = cn.load_panel()
-    ipq, _, _ = complete_quarters(cn_m["ip_cum_yoy"])
+    ipq, _, _ = complete_quarters(fill_structural_january(cn_m["ip_cum_yoy"]))
     gq = cn_q[cn.TARGET].dropna(); gq.index = pd.PeriodIndex(gq.index, freq="Q")
     both = pd.concat([ipq.rename("ip"), gq.rename("gdp")], axis=1).dropna()
     both = both[(both.index.year >= 2012) & (~both.index.year.isin([2020, 2021]))]
     b1, b0 = np.polyfit(both["gdp"], both["ip"], 1)
 
-    ip_obs, _, ip_seen = complete_quarters(cn_m["ip_cum_yoy"])
-    paths = {
-        "us_gdp_yoy_m": [float(us["centre"].get(p, np.nan)) for p in grid],
-        "g_tdi": [float(tot["centre"].get(p, np.nan)) for p in grid],
-        "ip_cum_yoy": [float(ip_obs[p]) if p in ip_obs.index
-                       else float(b0 + b1 * china["centre"].get(p, np.nan)) for p in grid],
-        "exp_eco3m": [float(mm["exp_eco3m"].dropna().iloc[-1])] * H,
-    }
-    for k, v in paths.items():
-        paths[k] = list(pd.Series(v).ffill().to_numpy())
+    ip_obs, _, _seen = complete_quarters(fill_structural_january(cn_m["ip_cum_yoy"]))
+
+    # One Peru-centered grid. Each satellite publishes on its OWN grid (a block
+    # whose base quarter is already released starts one quarter after ours), so
+    # every condition resolves as released data FIRST, block forecast second,
+    # and a hole raises instead of silently conditioning on NaN. "Released"
+    # honours the run's as-of date through each series' publication delay.
+    def released_by(sq: pd.Series, delay_days: int) -> pd.Series:
+        sq = sq.dropna()
+        rel = pd.PeriodIndex(sq.index, freq="Q").to_timestamp(how="end") \
+            + pd.Timedelta(days=delay_days)
+        return sq[rel <= today]
+
+    us_rel = mm["us_gdp_yoy_m"].dropna()
+    us_rel.index = pd.PeriodIndex(us_rel.index, freq="Q")
+    us_rel = released_by(us_rel[~us_rel.index.duplicated(keep="last")], 30)
+    tdi_rel = released_by(complete_quarters(mm["g_tdi"])[0], 40)
+    ip_rel = released_by(ip_obs, 15)
+    ip_fc = pd.Series(b0 + b1 * china["centre"].astype(float).to_numpy(),
+                      index=china.index)
+
+    us_path, us_mask = released_first(grid, us_rel, us["centre"], "us_gdp_yoy_m")
+    tdi_path, tdi_mask = released_first(grid, tdi_rel, tot["centre"], "g_tdi")
+    ip_path, ip_mask = released_first(grid, ip_rel, ip_fc, "ip_cum_yoy")
+    paths = {"us_gdp_yoy_m": us_path, "g_tdi": tdi_path, "ip_cum_yoy": ip_path,
+             "exp_eco3m": [float(mm["exp_eco3m"].dropna().iloc[-1])] * H}
+    masks = {"us_gdp_yoy_m": us_mask, "g_tdi": tdi_mask, "ip_cum_yoy": ip_mask}
 
     calib = {}
     for var, src, scale in (("us_gdp_yoy_m", us, 1.0), ("g_tdi", tot, 1.0),
                             ("ip_cum_yoy", china, abs(b1))):
-        calib[var] = {h: ({"s": float(src["s"].get(p, np.nan)) * scale,
-                           "gamma": float(src["gamma"].get(p, 0.0))}
-                          if p in src.index and np.isfinite(src["s"].get(p, np.nan)) else None)
+        calib[var] = {h: (None if masks[var][h - 1]      # released quarters are data
+                          else {"s": float(src["s"].get(p, np.nan)) * scale,
+                                "gamma": float(src["gamma"].get(p, 0.0))}
+                          if p in src.index and np.isfinite(src["s"].get(p, np.nan))
+                          else None)
                       for h, p in enumerate(grid, start=1)}
-    if ip_seen >= 3:                       # the current quarter is data, not a forecast
-        calib["ip_cum_yoy"][1] = {"s": 1e-6, "gamma": 0.0}
 
-    # live model + simulation
+    # nowcast node FIRST: the OFFICIAL artifact written by the nowcast stage is
+    # the single definition of the current quarter (value, ensemble, weights,
+    # information state, node TPN). The fan neither re-averages members nor
+    # refits the node; it validates the artifact's as-of and consumes it.
+    from pipeline.lib.nowcast_artifact import load_official
+
+    cur = base + 1
+    official = load_official(expected_as_of=today)
+    if str(official["quarter"]) != str(cur):
+        raise ValueError(f"official nowcast is for {official['quarter']} but the "
+                         f"fan's first node is {cur}; refresh the nowcast stage")
+    nc_hat = float(official["value"])
+    dtp = int(official["days_to_publication"])
+    info_idx = float(official["information_index"])
+    bin_now = int(official["information_bin"])
+    node_fit = {"s": float(official["s"]), "gamma": float(official["gamma"]),
+                "sigma_left": float(official["sigma_left"]),
+                "sigma_right": float(official["sigma_right"]), "mode_shift": 0.0}
+
+    # live model + simulation. The VAR must see the nowcast it is published
+    # with: the ladder lookup only covers backtested quarters, so the current
+    # quarter's condition is served explicitly - without it the model launches
+    # from its own unconditioned reading of the quarter and the whole path
+    # inherits the gap (that was the kink between nodes 1 and 2).
     fn, _ = nowcast_lookup(panel)
+
+    def make_fn(shift=0.0):
+        def f(info_, period):
+            if pd.Period(period, freq="Q") == cur:
+                return nc_hat + shift
+            return fn(info_, period)
+        return f
+
     ext = [(base + h).to_timestamp(how="end").to_period("M").to_timestamp() for h in range(1, H + 1)]
     p2 = _c.copy(panel)
     p2.quarterly = pd.concat([panel.quarterly,
                               pd.DataFrame({spec.target: np.nan}, index=ext)]).sort_index()
-    info = RealtimeEngine(p2).information_set(pd.Timestamp.now().normalize(), spec.target,
-                                              target_period=ext[-1])
-    from forecast.fan_mc import simulate_var_fan
-    sims = simulate_var_fan(lambda cu: make_cond(SYSTEM, nowcast_fn=fn, custom=cu, name="mc"),
-                            info, paths, calib, target=spec.target, horizons=H,
-                            n_scenarios=150, draws_per_scenario=8, seed=11)
+    info = RealtimeEngine(p2).information_set(today, spec.target, target_period=ext[-1])
+    from forecast.fan_mc import simulate_var_fan, tpn_ppf
+    jit = np.random.default_rng(13)
+
+    def factory(cu):
+        # each scenario jitters the jump-off by the nowcast node's own TPN
+        eps = float(tpn_ppf(jit.uniform(), 0.0,
+                            node_fit["sigma_left"], node_fit["sigma_right"]))
+        return make_cond(SYSTEM, nowcast_fn=make_fn(eps), custom=cu, name="mc")
+
+    sims = simulate_var_fan(factory, info, paths, calib, target=spec.target, horizons=H,
+                            **FAN_MC)
     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
         lv = forecast.live_forecast(panel, spec,
-                                    {"S1": make_cond(SYSTEM, nowcast_fn=fn, custom=paths,
+                                    {"S1": make_cond(SYSTEM, nowcast_fn=make_fn(), custom=paths,
                                                      name="S1", draws=3000)},
-                                    horizons=tuple(range(1, H + 1))).set_index("horizon")
+                                    horizons=tuple(range(1, H + 1)),
+                                    today=today).set_index("horizon")
 
-    # nowcast node
-    nc_bt = pd.read_parquet(next((REPO / "notebooks/peru").rglob("ladder_full.parquet")))
-    MEM = ["Bridge(leaders)", "P-MIDAS(leaders)"]
-    rc = add_information_index(nc_bt, panel, window_months=6)
-    combo, _w = combine_release_cycle(rc, MEM, index_col="info_index", n_bins=4,
-                                      min_train=6, method="inv_mse", name="Adaptive-IC")
-    k_ = ["ref_quarter", "days_to_publication"]
-    combo = combo.drop(columns="info_index", errors="ignore").merge(
-        rc.drop_duplicates(k_)[k_ + ["info_index"]], on=k_, how="left")
-    rc_all = pd.concat([rc, combo], ignore_index=True)
-    _, pools = conditional_bands(rc_all, "Adaptive-IC", index_col="info_index", n_bins=4,
-                                 levels=(0.30, 0.60, 0.90), lookback_years=12,
-                                 exclude_years=(2020, 2021), min_quarters=6,
-                                 collect_pools=True)
-    cur = base + 1
-    pub = cur.to_timestamp(how="end") + pd.Timedelta(days=spec.target_delay_days)
-    dtp = (pd.Timestamp.now().normalize() - pub).days
-    near = rc_all.iloc[(rc_all["days_to_publication"] - dtp).abs().argsort()[:150]]
-    info_idx = float(near["info_index"].median())
-    bin_now = int(np.clip(np.digitize([info_idx], np.linspace(0, 1, 5)[1:-1]), 0, 3)[0])
-    _q, pool = max([(q_, v) for (q_, b_), v in pools.items() if b_ == bin_now],
-                   key=lambda t: t[0])
-    from MIDAS import BridgeNowcaster, PooledMIDASNowcaster
-    from pipeline.config.metadata import PERU_LEADERS
-    lead = [c for c in PERU_LEADERS if c in mm.columns]
-    with contextlib.redirect_stdout(io.StringIO()):
-        nc_live = forecast.live_forecast(panel, spec, {
-            "Bridge": BridgeNowcaster(indicators=lead),
-            "PMIDAS": PooledMIDASNowcaster(monthly_vars=lead)}, horizons=(1,))
-    nc_hat = float(nc_live["y_hat"].mean())
-
-    fits = [fit_tpn_mle(nc_hat + pool)] + [fit_tpn_mle(sims[:, i]) for i in range(1, H)]
-    for f in fits:
-        if f:
-            f["mode_shift"] = 0.0
+    # published scales: the model's own real-time errors AT THE MATCHED
+    # information state, interpolated between the day-1 and day-30 origin sets
+    # by where in the cycle this run publishes (clamped outside the range).
+    # This extends the nowcast node's information-state logic to every node.
+    emp1, emp30 = _empirical_fits(H, today)
+    day_in_cycle = int((today - cur.to_timestamp(how="end")).days)
+    w = 0.0 if emp30 is None else float(np.clip((day_in_cycle - 1) / 29.0, 0.0, 1.0))
+    fits = [node_fit]
+    for k in range(2, H + 1):
+        a = emp1[k - 1]
+        b = emp30[k - 1] if emp30 is not None else a
+        sl = (1 - w) * a["sigma1"] + w * b["sigma1"]
+        sr = (1 - w) * a["sigma2"] + w * b["sigma2"]
+        s = float(np.sqrt((sl * sl + sr * sr) / 2.0))
+        fits.append({"mode_shift": 0.0, "sigma_left": float(sl), "sigma_right": float(sr),
+                     "s": s, "gamma": float((sr * sr - sl * sl) / (2 * s * s))})
     centre = [nc_hat] + [float(lv.loc[h, "y_hat"]) for h in range(2, H + 1)]
     periods = [cur] + [base + h for h in range(2, H + 1)]
     src = ["nowcast"] + ["conditional BVAR (S1)"] * (H - 1)
     df = fan_frame(periods, centre, fits, src)
 
-    # the outturn-based reading, for comparison
-    s1 = next((REPO / "notebooks/peru").rglob("02_bt_S1.parquet"), None)
-    if s1 is not None:
-        d = pd.read_parquet(s1)
-        d = d[(d.model == "S1 as-specified") & d.y_true.notna()]
-        d = d[~pd.to_datetime(d.ref_quarter).dt.year.isin([2020, 2021])]
-        d = d[~pd.to_datetime(d.base_quarter).dt.year.isin([2020, 2021])]
-        emp = fit_tpn_smooth({h: (d[d.horizon == h].y_true - d[d.horizon == h].y_hat).to_numpy()
-                              for h in range(1, 9)})
-        df["outturn_sigma_left"] = [df.sigma_left.iloc[0]] + [emp[h]["sigma1"] for h in range(2, H + 1)]
-        df["outturn_sigma_right"] = [df.sigma_right.iloc[0]] + [emp[h]["sigma2"] for h in range(2, H + 1)]
+    # the structural Monte-Carlo reading, for comparison
+    mc = [fit_tpn_mle(sims[:, i]) for i in range(1, H)]
+    df["structural_sigma_left"] = [node_fit["sigma_left"]] + \
+        [m["sigma_left"] if m else np.nan for m in mc]
+    df["structural_sigma_right"] = [node_fit["sigma_right"]] + \
+        [m["sigma_right"] if m else np.nan for m in mc]
 
-    stamp = information_stamp(spec, cur)
+    stamp = information_stamp(spec, cur, as_of=today)
     stamp.update(information_index=round(info_idx, 3), information_bin=bin_now,
-                 nowcast_pool_n=len(pool))
+                 nowcast_pool_n=int(official["pool_n"]), nowcast_conditioned=True,
+                 day_in_cycle=day_in_cycle, calibration_weight_day30=round(w, 2),
+                 tot_condition_units="log_yoy_pct_converted_from_arithmetic",
+                 evaluation_regime="pseudo_real_time_final_vintage",
+                 conditions_released="us={},tot={},ip={}".format(
+                     sum(us_mask), sum(tdi_mask), sum(ip_mask)))
+    if bundle_meta is not None:
+        stamp.update(fallback_bundle_run=bundle_meta["run_id"],
+                     fallback_bundle_as_of=bundle_meta["as_of"])
+        lines_prefix = (f"  - WARNING: satellites from prior bundle "
+                        f"{bundle_meta['run_id']} (as of {bundle_meta['as_of']})")
+    else:
+        lines_prefix = None
     out = write(df, REPO / "products/peru_gdp_fan.csv", stamp)
     lines = [f"- **Peru GDP**: " + ", ".join(f"{q} {v:.1f}%" for q, v in
                                              zip(df.quarter.head(4), df["mode"].head(4))),
@@ -160,4 +237,6 @@ def build(blocks: dict | None = None, **_) -> tuple[pd.DataFrame, list[str], obj
              f"(bin {bin_now}) - the first node is {'well informed' if info_idx > 0.75 else 'early-cycle'}",
              f"  - 90% band {df.width90.iloc[0]:.2f}pp at the nowcast, "
              f"{df.width90.iloc[-1]:.2f}pp at h=8"]
+    if lines_prefix:
+        lines.insert(1, lines_prefix)
     return df, lines, out

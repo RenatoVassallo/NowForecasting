@@ -8,7 +8,16 @@ from ._models import run_targets
 
 
 def run(store, params, panels) -> list[str]:
-    return run_targets(store, params, panels, targets.DOMESTIC, "domestic")
+    lines = run_targets(store, params, panels, targets.DOMESTIC, "domestic")
+    result = getattr(store, "nowcast_results", {}).get("peru_gdp")
+    if result is not None:
+        from pipeline.lib.context import resolve_as_of
+        from pipeline.lib.nowcast_artifact import write_official
+
+        path = write_official(store, result,
+                              as_of=resolve_as_of(getattr(store, "ctx", None)))
+        lines.append(f"- official Peru nowcast artifact written ({path.name})")
+    return lines
 
 
 def run_peru_fan(store, params) -> list[str]:
@@ -24,7 +33,7 @@ def run_peru_fan(store, params) -> list[str]:
     from pipeline.blocks import build_peru
 
     blocks = getattr(store, "blocks", {}) or {}
-    df, lines, path = build_peru(blocks=blocks)
+    df, lines, path = build_peru(blocks=blocks, ctx=getattr(store, "ctx", None))
     dest = Path(store.root)
     shutil.copy2(path, dest / path.name)
     return lines

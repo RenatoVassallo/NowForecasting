@@ -275,7 +275,7 @@ def _load_fred_key() -> str:
     load_dotenv(HERE / ".env")
     key = os.getenv("FRED_KEY")
     if not key:
-        raise RuntimeError("FRED_KEY not found. Add it to notebooks/DSAPM/.env before running the notebook.")
+        raise RuntimeError(f"FRED_KEY not found. Add it to {HERE / '.env'}.")
     return key
 
 

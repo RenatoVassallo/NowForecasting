@@ -11,7 +11,6 @@ inverted fan - plus the probability density of today's estimate as a sidecar.
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import matplotlib
@@ -32,7 +31,10 @@ _CTX_CACHE: dict = {}
 # --------------------------------------------------------------------------- #
 # context
 # --------------------------------------------------------------------------- #
-def load_context() -> dict:
+def load_context(as_of=None, store=None) -> dict:
+    from pipeline.lib.context import resolve_as_of
+
+    as_of = resolve_as_of(None) if as_of is None else __import__("pandas").Timestamp(as_of).normalize()
     if _CTX_CACHE:
         return _CTX_CACHE
     import targets
@@ -70,44 +72,58 @@ def load_context() -> dict:
     both = both[(both.index.year >= 2012) & (~both.index.year.isin([2020, 2021]))]
     ctx["bridge"] = np.polyfit(both["gdp"], both["ip"], 1)
 
-    # Peru release-cycle machinery: weekly live sweep + information-bin pools
-    sys.path.insert(0, str(REPO / "notebooks/peru/forecast"))
-    from common import build_panel
-    from nowcast.release_cycle import (add_information_index, combine_release_cycle,
-                                       conditional_bands, live_path)
-    from MIDAS import BridgeNowcaster, PooledMIDASNowcaster
-    from pipeline.config.metadata import PERU_LEADERS
+    # Peru release-cycle machinery, OFFICIAL artifacts only. The flagship sweep
+    # and headline value are read from the files the nowcast stage wrote (one
+    # definition everywhere); this stage recomputes NOTHING about the nowcast.
+    # The rc frame (members + Adaptive-IC over history) is still needed for the
+    # information-bin residual pools behind the band shading; it comes from the
+    # run store when this run executed the nowcast stage, else from the newest
+    # prior run that did.
+    from nowcast.release_cycle import conditional_bands
+    from pipeline.config import metadata
+    from pipeline.lib.nowcast_artifact import load_official, load_sweep
 
-    _, _, panel = build_panel(spec)
-    nc = pd.read_parquet(next((REPO / "notebooks/peru").rglob("ladder_full.parquet")))
-    rc = add_information_index(nc, panel, window_months=6)
-    combo, _ = combine_release_cycle(rc, ["Bridge(leaders)", "P-MIDAS(leaders)"],
-                                     index_col="info_index", n_bins=4, min_train=6,
-                                     method="inv_mse", name="Adaptive-IC")
-    k = ["ref_quarter", "days_to_publication"]
-    combo = combo.drop(columns="info_index", errors="ignore").merge(
-        rc.drop_duplicates(k)[k + ["info_index"]], on=k, how="left")
-    rc_all = pd.concat([rc, combo], ignore_index=True)
-    bands, pools = conditional_bands(rc_all, "Adaptive-IC", index_col="info_index",
+    aname = metadata.ADAPTIVE["name"]
+    rc_all = None
+    roots = []
+    if store is not None:
+        roots.append(Path(store.root))
+        roots += sorted((p for p in Path(store.runs_dir).glob("*")
+                         if p.is_dir() and not p.is_symlink()), reverse=True)
+    for r in roots:
+        f = r / "domestic" / "peru_gdp" / "nowcasts.parquet"
+        if f.exists():
+            rc_all = pd.read_parquet(f)
+            break
+    if rc_all is None:
+        raise FileNotFoundError(
+            "no run with a saved Peru nowcast frame; run the nowcast stage "
+            "before the figures")
+    bands, pools = conditional_bands(rc_all, aname, index_col="info_index",
                                      n_bins=4, levels=(0.30, 0.60, 0.90),
                                      lookback_years=12, exclude_years=(2020, 2021),
                                      min_quarters=6, collect_pools=True)
     ctx["rc_bands"], ctx["rc_pools"], ctx["rc_all"] = bands, pools, rc_all
 
-    lead = [c for c in PERU_LEADERS if c in panel.monthly.columns]
-    lp = live_path(panel, spec, {"Bridge": BridgeNowcaster(indicators=lead),
-                                 "PMIDAS": PooledMIDASNowcaster(monthly_vars=lead)},
-                   step_days=7)
-    sweep = (lp.groupby("origin_date")
-             .agg(y_hat=("y_hat", lambda s: np.nanmean(s)),
-                  dtp=("days_to_publication", "first"),
-                  ref=("ref_quarter", "first")).reset_index())
-    # attach an information bin per origin from the historical dtp -> index map
-    ref_map = (rc_all.groupby("days_to_publication")["info_index"].median()
-               .rolling(3, center=True, min_periods=1).mean())
-    sweep["info"] = np.interp(sweep["dtp"], ref_map.index, ref_map.values)
+    sw = load_sweep(expected_as_of=as_of)
+    sweep = pd.DataFrame({
+        "origin_date": pd.to_datetime(sw.origin_date),
+        "y_hat": sw.y_hat.to_numpy(dtype=float),
+        "dtp": sw.days_to_publication.to_numpy(),
+        "ref": pd.to_datetime(sw.ref_quarter),
+        "info": sw.info_index.to_numpy(dtype=float)})
     sweep["bin"] = np.clip(np.digitize(sweep["info"], np.linspace(0, 1, 5)[1:-1]), 0, 3)
     ctx["sweep"] = sweep
+
+    official = load_official(expected_as_of=as_of)
+    # tolerance: above the artifact's 4-decimal storage rounding, far below the
+    # 0.1pp reporting resolution
+    if abs(float(official["value"]) - float(sweep["y_hat"].iloc[-1])) > 1e-3:
+        raise ValueError(
+            "flagship sweep endpoint differs from the official nowcast "
+            f"({sweep['y_hat'].iloc[-1]:.4f} vs {official['value']:.4f}); "
+            "the stages are not consuming one artifact")
+    ctx["official"] = official
     _CTX_CACHE.update(ctx)
     return ctx
 
@@ -366,7 +382,8 @@ FIGURES = {
 
 def run(store, params, panels=None) -> list[str]:
     FIGDIR.mkdir(parents=True, exist_ok=True)
-    ctx = load_context()
+    rctx = getattr(store, "ctx", None)
+    ctx = load_context(as_of=rctx.as_of if rctx is not None else None, store=store)
     store.fig_ctx = ctx
     lines = []
     dest = Path(store.root) / "figures"

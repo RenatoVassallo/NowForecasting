@@ -110,6 +110,18 @@ with -13pp errors (this was the "huge lower band" bug).
 
 ## Conventions (do not break)
 
+- **Fan calibration matches the information state.** Published fan scales come
+  from real-time errors measured at origins that MATCH the publication timing
+  (Peru: day-1 and day-30 origin sets in `02_bt_S1*.parquet`, interpolated by
+  the day the run publishes). The backtest harness's `base_quarter` is the
+  just-ended UNPUBLISHED quarter, so fan node k maps to harness horizon k−1.
+  For conditioned models whose error profile is flat in h with a real
+  short-horizon dip, smooth scales with `fit_tpn_smooth(smoothing="monotone")`,
+  never the power law (it moves width from the short horizons to the middle).
+  The live model must receive every condition its backtest counterpart had:
+  the current-quarter nowcast is served explicitly (`make_fn` in
+  `pipeline/blocks/peru.py`) because the ladder lookup only covers backtested
+  quarters.
 - **Common evaluation floor:** ONE full-sample backtest
   (`tgt.BACKTEST_START/END`, 2010-2026, expanding window), scored on several
   **subperiods** (`tgt.SUBPERIODS`, label -> (start, end, exclude_years)):

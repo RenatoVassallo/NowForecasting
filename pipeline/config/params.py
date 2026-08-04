@@ -13,11 +13,11 @@ RUNS_DIR = REPO_ROOT / "output" / "runs"     # one output/ tree; each run = outp
 
 # --- which stages run (in order) ---------------------------------------------
 STAGES = {
-    "data":     True,   # 1. refresh + snapshot every source, report what's new
-    "nowcast":  True,   # 2. current-quarter nowcasts (China satellite, Peru domestic)
-    "forecast": True,   # 3. block chain (usa -> china -> commodities) + Peru BVAR fan
-    "fanchart": True,   # 4. the five published figures
-    "report":   True,   # 5. report.pdf + report.md
+    "data":     False,   # 1. refresh + snapshot every source, report what's new
+    "nowcast":  False,   # 2. current-quarter nowcasts (China satellite, Peru domestic)
+    "forecast": False,   # 3. block chain (usa -> china -> commodities) + Peru BVAR fan
+    "fanchart": False,   # 4. the five published figures
+    "report":   True,    # 5. report.pdf + report.md
 }
 
 # --- which targets run (must exist in targets.REGISTRY) ----------------------
@@ -54,3 +54,8 @@ UPDATE_LATEST_SYMLINK = True   # output/runs/latest -> newest run
 # Restrict the chain to a subset while iterating, e.g. ("commodities", "peru").
 # Empty or None runs every block in dependency order.
 CHAIN_BLOCKS = ()
+
+# --- availability preflight overrides (documented waivers only) --------------
+# {internal_code: {"author": ..., "reason": ...}}; every waiver is recorded as a
+# manually_overridden event in the append-only log and in the run manifest.
+AVAILABILITY_OVERRIDES: dict = {}

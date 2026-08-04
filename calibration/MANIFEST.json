@@ -1,0 +1,49 @@
+{
+  "schema": 1,
+  "frozen_on": "2026-08-04",
+  "policy": "Production reads these artifacts ONLY through pipeline.lib.calibration_assets.asset_path, which verifies the sha256 below. Refreshing an artifact is a deliberate act: replace the file, update this manifest, commit both together. A lab rerun that rewrites notebook outputs cannot change production.",
+  "assets": {
+    "peru_ladder_full.parquet": {
+      "sha256": "8a6932e77fdb55e15a43495fd22c24b366aff66456d2051d260273509aa682fc",
+      "bytes": 32556,
+      "frozen_from": "notebooks/peru/nowcast/output/backtests/ladder_full.parquet",
+      "producer": "notebooks/peru/nowcast/02_backtesting.ipynb",
+      "role": "Peru release-cycle nowcast ladder (all members, all origins); the official Adaptive-IC combination and the exact-chain replay build on it"
+    },
+    "peru_s1_day1.parquet": {
+      "sha256": "1c566f4ddad7dd0536e7c2136576b9658e0e7a3b3c93924f09479d0bc1ea8a10",
+      "bytes": 14699,
+      "frozen_from": "notebooks/peru/forecast/output/02_bt_S1.parquet",
+      "producer": "notebooks/peru/forecast/02_backtesting.ipynb",
+      "role": "legacy S1 conditional-BVAR backtest at day-1 information state; prior pool for sequential fan calibration"
+    },
+    "peru_s1_day30.parquet": {
+      "sha256": "a9ee0a131413452d69930eaae5882f5a8c4935271f122829dcc9472d5a0c7eab",
+      "bytes": 14699,
+      "frozen_from": "notebooks/peru/forecast/output/02_bt_S1_day30.parquet",
+      "producer": "notebooks/peru/forecast/02_backtesting.ipynb",
+      "role": "legacy S1 conditional-BVAR backtest at day-30 information state; prior pool for sequential fan calibration"
+    },
+    "china_ladder_full.parquet": {
+      "sha256": "f69120d4f6b99c834f576c293d5ce582c6b5b43efa4e0ace989d81fdb68d21ee",
+      "bytes": 21783,
+      "frozen_from": "notebooks/china/forecast/output/backtests/ladder_full.parquet",
+      "producer": "notebooks/china (nowcast backtesting)",
+      "role": "China release-cycle nowcast ladder; Adaptive-IC weights for the satellite nowcast"
+    },
+    "china_horizon_2012floor.parquet": {
+      "sha256": "5e35627b0a200f26e597cb1504376e9ced0cec8b16330b7e2386b1c98f993dd3",
+      "bytes": 66491,
+      "frozen_from": "notebooks/china/forecast/output/backtests/horizon_2012floor.parquet",
+      "producer": "notebooks/china/forecast/03 (horse race, 2012 floor)",
+      "role": "China forecast horse-race backtest; Combo weights (PAST bases only; the live base is always recomputed) and TPN error calibration"
+    },
+    "china_tilt_weo.parquet": {
+      "sha256": "664e6f9d41bcb2a1f1de7103fe0fbb319107d331704588b797e2455c881a6a5e",
+      "bytes": 11903,
+      "frozen_from": "notebooks/china/forecast/output/backtests/tilt_weo.parquet",
+      "producer": "notebooks/china/forecast/03 (WEO tilt)",
+      "role": "WEO-tilted China path backtest; the published path blends Combo and tilt with weight ALPHA"
+    }
+  }
+}

@@ -42,10 +42,20 @@ def assemble_panel(monthly_raw: pd.DataFrame, quarterly_raw: pd.DataFrame, *,
 
     cols = [c for c in transforms if c in monthly_raw.columns]
     monthly = monthly_raw[cols]
+    jan_gap = None
     if fill_jan_gap:
+        # The NBS combined January-February release: January is filled ONLY so
+        # the de-cumulation identity can produce February, and is blanked again
+        # below. A January-dated cell would otherwise carry February's
+        # information with January's release timing (visible a month early in
+        # every historical information set). The February cell alone represents
+        # the combined release, at its true reference month and release date.
+        jan_gap = monthly.isna() & (pd.Index(monthly.index).month == 1)[:, None]
         monthly = fill_single_month_gap(monthly, month=1)
     monthly = transform_frame(monthly, transforms, periods_per_year=periods_per_year)
     monthly = monthly.replace([np.inf, -np.inf], np.nan)
+    if jan_gap is not None:
+        monthly = monthly.mask(jan_gap.to_numpy())
 
     quarterly = quarterly_raw[[target]].copy()
 

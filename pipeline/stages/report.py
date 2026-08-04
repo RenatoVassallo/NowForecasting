@@ -24,7 +24,7 @@ def _esc(s: str) -> str:
     return str(s).replace("%", r"\%").replace("&", r"\&").replace("_", r"\_")
 
 
-def _tokens(ctx) -> dict:
+def _tokens(ctx, as_of) -> dict:
     from sources import imf
 
     peru = ctx["peru"]
@@ -37,7 +37,7 @@ def _tokens(ctx) -> dict:
            [v for p, v in d["mode"].items() if p.year == yr and p not in y.index]
     ann2 = [v for p, v in d["mode"].items() if p.year == yr + 1]
     try:
-        weo, _ = imf.path("PER", pd.Timestamp.now())
+        weo, _ = imf.path("PER", as_of)
         weo1, weo2 = f"{float(weo.get(yr, np.nan)):.1f}", f"{float(weo.get(yr + 1, np.nan)):.1f}"
     except Exception:
         weo1 = weo2 = "-"
@@ -45,7 +45,9 @@ def _tokens(ctx) -> dict:
     state = ("the first node is well informed" if node.get("information_index", 0) > 0.75
              else "the run is early in the release cycle: the first node is no better "
                   "informed than the second")
-    info = (f"As of {node.get('as_of', '')}: {abs(int(node.get('days_to_publication', 0)))} days to the "
+    info = ("Evaluation regime: pseudo real time on final-vintage data "
+            "(scalar release rules; not genuine real time). "
+            f"As of {node.get('as_of', '')}: {abs(int(node.get('days_to_publication', 0)))} days to the "
             f"{node['quarter']} GDP release, information index "
             f"{node.get('information_index', float('nan')):.2f} - {state}. "
             "Conditioning: US from the SPF and the IMF WEO live round; China from the "
@@ -119,7 +121,7 @@ def _tokens(ctx) -> dict:
         qrows.append(f"        {_esc(k)} & " + " & ".join(vals) + r" \\")
 
     return {
-        "<<DATE>>": str(pd.Timestamp.now().date()),
+        "<<DATE>>": str(as_of.date()),
         "<<QUARTER>>": str(node["quarter"]),
         "<<NOWCAST>>": f"{node['mode']:.1f}",
         "<<NOWCAST90>>": f"[{node['lo90']:.1f}, {node['hi90']:.1f}]",
@@ -137,7 +139,10 @@ def _tokens(ctx) -> dict:
 
 
 def run(store, params, whatsnew: str, lines: list[str], timings: dict) -> None:
-    ctx = getattr(store, "fig_ctx", None) or F.load_context()
+    from pipeline.lib.context import resolve_as_of
+
+    as_of = resolve_as_of(getattr(store, "ctx", None))
+    ctx = getattr(store, "fig_ctx", None) or F.load_context(as_of=as_of)
     root = Path(store.root)
     figdir = root / "figures"
     figdir.mkdir(exist_ok=True)
@@ -145,7 +150,7 @@ def run(store, params, whatsnew: str, lines: list[str], timings: dict) -> None:
         shutil.copy2(f, figdir / f.name)
 
     tex = TEMPLATE.read_text()
-    for k, v in _tokens(ctx).items():
+    for k, v in _tokens(ctx, as_of).items():
         tex = tex.replace(k, v)
     (root / "report.tex").write_text(tex)
 

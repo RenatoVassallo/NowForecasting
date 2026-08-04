@@ -128,7 +128,7 @@ CONCEPT_TO_COLUMN = {
 }
 
 
-def _fetch_nbs(frequency: str) -> pd.DataFrame | None:
+def _fetch_nbs(frequency: str, refresh: bool = False) -> pd.DataFrame | None:
     """Fetch the active NBS series for one frequency via the uniform interface,
     renamed to the modelling-CSV column names. Duplicate concepts (several
     backends per series) are combined, first-listed backend winning per cell.
@@ -143,7 +143,8 @@ def _fetch_nbs(frequency: str) -> pd.DataFrame | None:
         rows = rows[rows["active"].astype(bool)]
     if rows.empty:
         return None
-    fresh = sources.fetch("nbs", list(rows["series_id"]), frequency=frequency)
+    fresh = sources.fetch("nbs", list(rows["series_id"]), frequency=frequency,
+                          refresh=refresh)
     if fresh is None or fresh.empty:
         return None
     if "concept" in rows.columns:
@@ -190,7 +191,8 @@ def _merge_csv(path, fresh: pd.DataFrame, *, period_fmt: str) -> tuple[int, int,
     out = upd.reset_index()
     out["period"] = (out["period"].dt.to_period("M").astype(str) if period_fmt == "M"
                      else out["period"].dt.strftime("%Y-%m-%d"))
-    out.to_csv(path, index=False)
+    from sources.base import atomic_write_csv
+    atomic_write_csv(out, path, index=False)
     return new_rows, revised, unmatched
 
 
@@ -207,7 +209,7 @@ def refresh() -> list[str]:
     old_gdp_last = q_old[TARGET].dropna().index.max()
 
     try:
-        fresh_m = _fetch_nbs("M")
+        fresh_m = _fetch_nbs("M", refresh=True)
         if fresh_m is not None:
             n_new, n_rev, unmatched = _merge_csv(MONTHLY_RAW, fresh_m, period_fmt="M")
             m_new, _ = load_raw()
@@ -227,7 +229,7 @@ def refresh() -> list[str]:
                     f"using snapshot through {old_m_last:%Y-%m}")
 
     try:
-        fresh_q = _fetch_nbs("Q")
+        fresh_q = _fetch_nbs("Q", refresh=True)
         if fresh_q is not None:
             n_new, n_rev, unmatched = _merge_csv(QUARTERLY_RAW, fresh_q, period_fmt="Q")
             _, q_new = load_raw()

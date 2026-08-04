@@ -96,17 +96,64 @@ def series_summary(monthly: pd.DataFrame) -> pd.DataFrame:
     }).dropna(subset=["missing_share"]).sort_values("delay_days")
 
 
-def refresh() -> list[str]:
-    """Pull fresh Peru data where automated; report the rest honestly.
+class PanelRebuildError(RuntimeError):
+    """A Peru release is due but the model panel cannot be rebuilt."""
 
-    * **INEI** bulletins: live idempotent update into ``input/inei`` (new bulletins
-      are ingested as vintages and the derived panels rebuilt).
-    * **BCRP/FRED spec3 caches** (the modelling panel): NOT rebuilt here - the
-      spec3 pipeline (download + X13 seasonal adjustment + transforms) is the
-      legacy preprocess and needs its own environment. The message reports how
-      current the caches are so a stale panel is never silent.
 
-    Never raises: failures become messages and the committed data stays in place.
+def _release_due(last_obs_month, as_of, delay_days: int) -> tuple[bool, str]:
+    """Pure due rule: the latest month whose release date has passed at
+    ``as_of`` must be present in the panel."""
+    as_of = pd.Timestamp(as_of).normalize()
+    last = pd.Period(last_obs_month, freq="M")
+    cand = pd.Period(as_of, freq="M")
+    due = cand
+    for _ in range(48):
+        if (due.to_timestamp(how="end").normalize()
+                + pd.Timedelta(days=int(delay_days))) <= as_of:
+            break
+        due -= 1
+    if last >= due:
+        return False, f"panel through {last}, latest due month is {due}"
+    return True, f"month {due} was released by {as_of.date()} but the panel ends at {last}"
+
+
+def panel_release_due(as_of=None) -> tuple[bool, str]:
+    """Is a spec3 observation due at ``as_of`` that the cache lacks?
+
+    The gate watches the raw monthly GDP proxy (``g_pbim``) in the processed
+    snapshot, the slowest required series and the one the whole ladder hangs
+    off; its delay equals the target's 51 days.
+    """
+    as_of = pd.Timestamp.now().normalize() if as_of is None else pd.Timestamp(as_of)
+    monthly, _, _, _ = load_processed()
+    col = "g_pbim" if "g_pbim" in monthly.columns else MONTHLY_PROXY
+    last = monthly[col].dropna().index.max()
+    return _release_due(last, as_of, TARGET_DELAY_DAYS)
+
+
+def rebuild_panel(*, refresh_downloads: bool = True) -> list[str]:
+    """Rebuild the EXACT spec3 panel production consumes: raw download, X13
+    seasonal adjustment, transforms, snapshot export into ``input/peru``."""
+    from core import preprocess
+
+    preprocess.locate_x13_binary()          # fail fast with an actionable error
+    art = preprocess.build_processed_artifacts(
+        spec="spec3", refresh_downloads=refresh_downloads, refresh_sa=True)
+    preprocess.export_processed_snapshot(art, output_dir=PROCESSED_DIR)
+    m_last = art.panel.monthly.dropna(how="all").index.max()
+    return [f"spec3 panel REBUILT (X13 + transforms): monthly through {m_last:%Y-%m}"]
+
+
+def refresh(as_of=None) -> list[str]:
+    """Pull fresh Peru data; rebuild the model panel when a release is due.
+
+    * **INEI** bulletins: live idempotent update into ``input/inei``.
+    * **spec3 caches** (the modelling panel production actually consumes):
+      when the release calendar says a new observation is DUE and the cache
+      lacks it, the panel is rebuilt through the full preprocess (download,
+      X13, transforms). If that rebuild is impossible the refresh RAISES
+      ``PanelRebuildError``: a refresh that only updated an unrelated INEI
+      cache must never count as success while the model panel is stale.
     """
 
     msgs = []
@@ -124,19 +171,18 @@ def refresh() -> list[str]:
     except Exception as exc:
         msgs.append(f"INEI: update FAILED ({type(exc).__name__}: {exc}); using cached data")
 
+    due, why = panel_release_due(as_of)
+    if not due:
+        msgs.append(f"spec3 panel: current ({why})")
+        return msgs
     try:
-        monthly, q_sa, m_sa, _ = load_processed()
-        m_last = monthly.dropna(how="all").index.max()
-        q_last = q_sa["pbiq"].dropna().index.max()
-        qp = pd.Period(q_last, freq="Q")
-        import datetime as _dt
-        cache_age = (_dt.date.today()
-                     - _dt.date.fromtimestamp((PROCESSED_DIR / "monthly_panel_spec3.parquet").stat().st_mtime)).days
-        msgs.append(f"BCRP/FRED spec3 caches: monthly panel through {m_last:%Y-%m}, "
-                    f"GDP through {qp.year}Q{qp.quarter} (cache built {cache_age}d ago; "
-                    "refresh requires the legacy X13 preprocess, not run automatically)")
+        msgs += rebuild_panel()
     except Exception as exc:
-        msgs.append(f"spec3 caches: status check failed ({type(exc).__name__}: {exc})")
+        raise PanelRebuildError(
+            f"a Peru release is due ({why}) but the spec3 model panel cannot "
+            f"be rebuilt: {type(exc).__name__}: {exc}. Install the X13 binary "
+            "(core.preprocess.locate_x13_binary) or rebuild manually; a refresh "
+            "that only touched INEI is NOT a successful Peru refresh.") from exc
     return msgs
 
 

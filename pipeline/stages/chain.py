@@ -49,7 +49,7 @@ def run(store, params, panels=None) -> list[str]:
         builder, feeds = BLOCKS[name]
         t0 = time.time()
         try:
-            _df, block_lines, path = builder()
+            _df, block_lines, path = builder(ctx=getattr(store, "ctx", None))
             _validate(path)
             published[name] = path
             lines += block_lines
@@ -59,7 +59,18 @@ def run(store, params, panels=None) -> list[str]:
             print(f"  [chain] {name:12s} {time.time()-t0:6.0f}s  ok")
         except Exception as exc:
             lines.append(f"- **{name}**: FAILED ({type(exc).__name__}: {exc})")
-            lines.append(f"  - downstream {', '.join(feeds)} will use the previous vintage")
+            lines.append(f"  - downstream {', '.join(feeds)} must fall back to one "
+                         "coherent prior bundle, or the domestic stage aborts")
             print(f"  [chain] {name:12s} {time.time()-t0:6.0f}s  FAILED {exc}")
     store.blocks = published
+
+    from pipeline.lib import bundle as _bundle
+    dest = Path(store.root) / "blocks"
+    if set(published) >= set(_bundle.REQUIRED_BLOCKS):
+        _bundle.write_bundle(dest, published, getattr(store, "ctx", None))
+        lines.append("- chain bundle: complete and recorded (bundle.json)")
+    else:
+        missing = sorted(set(_bundle.REQUIRED_BLOCKS) - set(published))
+        lines.append(f"- chain bundle: INCOMPLETE (missing {', '.join(missing)}); "
+                     "no bundle recorded for this run")
     return lines

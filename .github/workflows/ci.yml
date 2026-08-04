@@ -1,0 +1,53 @@
+# NowForecasting CI: the public contract surface.
+#
+# A public clone carries the framework, the pipeline, the tracked registry and
+# the calibration manifest; the private data layer (sources/, input/, output/,
+# notebooks/, calibration binaries) stays local. Tests that need private data
+# skip themselves with an explicit reason, so this workflow is the executable
+# definition of the public/private reproducibility boundary.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      MPLCONFIGDIR: /tmp/nowforecasting_mpl
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv (locked Python 3.11 environment)
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.11"
+
+      - name: Sync environment from the lock file
+        run: uv sync --frozen
+
+      - name: Registry validation
+        run: uv run pytest tests/test_registry.py tests/test_data_availability.py -q
+
+      - name: Transform contracts
+        run: uv run pytest tests/test_transform_contract.py -q
+
+      - name: Quarter-grid contracts
+        run: uv run pytest tests/test_quarter_grid.py -q
+
+      - name: Two-piece-normal invariants
+        run: uv run pytest tests/test_tpn_math.py -q
+
+      - name: Run lifecycle and notebook-independence contracts
+        run: uv run pytest tests/test_run_lifecycle.py tests/test_no_notebook_deps.py -q
+
+      - name: Synthetic pipeline smoke run
+        run: uv run pytest tests/test_smoke_pipeline.py -q
+
+      - name: Full public suite
+        run: uv run pytest -q -rs

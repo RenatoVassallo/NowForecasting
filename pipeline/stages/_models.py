@@ -59,9 +59,13 @@ def run_targets(store, params, panels, names, stage_name) -> list[str]:
 
         print(f"    [{stage_name}] {name} ...", flush=True)
         models = modelset.build(metadata.MODELS[name])
+        ctx = getattr(store, "ctx", None)
         result = nowcast_job.run(t, models, panel=panels.get(name),
-                                 n_jobs=params.N_JOBS, backtest=bt)
+                                 n_jobs=params.N_JOBS, backtest=bt,
+                                 as_of=ctx.as_of if ctx is not None else None)
         reporting.save_result(store, result, params)
+        store.nowcast_results = getattr(store, "nowcast_results", {})
+        store.nowcast_results[name] = result
         reports.append(reporting.target_report(result))
     store.log_stage(stage_name, {"targets": enabled, "seconds": round(time.time() - t0, 1)})
     return reports
