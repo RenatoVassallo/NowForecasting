@@ -38,6 +38,126 @@ H = 8
 SYSTEM = ["us_gdp_yoy_m", "ip_cum_yoy", "g_tdi", "exp_eco3m", "g_invq_m"]
 BENCH_MEMBERS = ("S1-chain", "RW", "AR(2)", "BVAR-unconditional")
 
+# The harness replays the exact production RULE but with REDUCED Monte-Carlo
+# settings (ToT BVAR 2 chains x 3000 draws vs the published 4 x 6000), so its
+# results are exact-rule-reduced-MC, never "computationally identical" to the
+# live run. The measured chain-to-chain wobble of the ToT centre is documented
+# in pipeline/blocks/commodities.py; quantify per regeneration at one origin.
+CLAIM = "exact_rule_reduced_mc"
+TOT_CHAINS = (7, 17)
+TOT_DRAWS = 3000
+
+
+class ExactChainConfigError(RuntimeError):
+    """The stored artifact was generated under a different configuration."""
+
+
+def _dep_versions() -> dict:
+    import importlib.metadata as md
+
+    out = {}
+    for pkg in ("pandas", "numpy", "scipy", "midas", "macropy"):
+        try:
+            out[pkg] = md.version(pkg)
+        except Exception:
+            try:
+                mod = __import__({"midas": "MIDAS", "macropy": "MacroPy"}.get(pkg, pkg))
+                out[pkg] = getattr(mod, "__version__", "local-src")
+            except Exception:
+                out[pkg] = "unavailable"
+    return out
+
+
+def fingerprint(bases, *, panel_sha: str, tot_chains=TOT_CHAINS,
+                tot_draws=TOT_DRAWS) -> dict:
+    """Everything that must be IDENTICAL for two artifact rows to be mergeable.
+
+    ``requested_bases`` is recorded but excluded from the equality check:
+    extending the chain to new bases under the same configuration is the
+    purpose of resuming.
+    """
+    from core.evaluation import EVALUATION_REGIME
+    from pipeline.blocks import _china_model as cm
+    from pipeline.blocks import _peru_panel as pp
+    from pipeline.blocks.peru import FAN_MC
+    from pipeline.lib.bundle import registry_sha
+    from pipeline.lib.calibration_assets import manifest_hashes
+    from pipeline.lib.context import _code_version
+
+    assets = {k: v for k, v in manifest_hashes().items()
+              if not k.endswith("exact_chain.parquet")}   # output lineage, not input
+    return {
+        "schema": 1,
+        "claim": CLAIM,
+        "evaluation_regime": EVALUATION_REGIME,
+        "code_version": _code_version(),
+        "dependencies": _dep_versions(),
+        "registry_sha": registry_sha(),
+        "calibration_assets": assets,
+        "panel_sha": panel_sha,
+        "model_spec": {"system": pp.CANDIDATE_SYSTEMS["S1 as-specified"],
+                       "prior": pp.TIGHT, "floor": pp.FLOOR,
+                       "china_members": list(cm.MEMBERS),
+                       "blend_alpha": cm.ALPHA},
+        "release_rules": {"peru_gdp": 52, "china_gdp": 18, "ip_cum_yoy": 15,
+                          "g_tdi": 40, "us_gdp": 30},
+        "seeds": {"tot_chains": list(tot_chains), "bvar": cm.BVAR_SEED,
+                  "fan_mc": dict(FAN_MC)},
+        "draws": {"tot_draws": tot_draws, "bvar_post_draws": 800},
+        "origin_day": ORIGIN_DAY,
+        "requested_bases": [str(b) for b in bases],
+    }
+
+
+_FP_COMPARE_EXCLUDE = {"requested_bases"}
+
+
+def _load_resume_state(out: Path, fp: dict):
+    """Rows + completed bases of a resumable artifact, or refuse loudly."""
+    out = Path(out)
+    if not out.exists():
+        return [], set()
+    fpath = out.with_name("exact_chain_fingerprint.json")
+    if not fpath.exists():
+        raise ExactChainConfigError(
+            f"{out} exists without a fingerprint: its configuration is "
+            "unknown and rows must never be merged. Start a new artifact "
+            "(supersede() or --new) or delete it deliberately.")
+    stored = json.loads(fpath.read_text())
+    current = json.loads(json.dumps(fp, default=str))
+    diff = [k for k in sorted(set(stored) | set(current))
+            if k not in _FP_COMPARE_EXCLUDE and stored.get(k) != current.get(k)]
+    if diff:
+        raise ExactChainConfigError(
+            "exact-chain configuration changed since the stored artifact was "
+            f"generated (differing keys: {', '.join(diff)}). Refusing to "
+            "resume: rows from different configurations must never merge. "
+            "Start a new artifact (supersede() or --new).")
+    prev = pd.read_parquet(out)
+    done = set(prev.base.unique())
+    cpath = out.with_name("exact_chain_checks.json")
+    checks = set(json.loads(cpath.read_text())) if cpath.exists() else set()
+    if checks != done:
+        raise ExactChainConfigError(
+            "exact-chain checks file is out of step with the parquet "
+            f"(parquet bases {sorted(done)}, checks {sorted(checks)}); the "
+            "artifact is partial or corrupt. Supersede it and regenerate.")
+    return [prev], done
+
+
+def supersede(out: Path = OUT) -> Path:
+    """Move an existing artifact (and sidecars) aside; returns the new home."""
+    out = Path(out)
+    stamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
+    moved = out.with_name(f"exact_chain_superseded_{stamp}.parquet")
+    if out.exists():
+        out.rename(moved)
+    for side in ("exact_chain_checks.json", "exact_chain_fingerprint.json"):
+        p = out.with_name(side)
+        if p.exists():
+            p.rename(out.with_name(f"{Path(side).stem}_superseded_{stamp}.json"))
+    return moved
+
 
 def origin_for(base: pd.Period) -> pd.Timestamp:
     cur = base + 1
@@ -314,44 +434,58 @@ def run_origin(ctx: ChainContext, base: pd.Period, *, tot_chains=(7, 17),
     return rows, checks
 
 
-def run_all(bases=None, out: Path = OUT, **kw) -> pd.DataFrame:
+def run_all(bases=None, out: Path = OUT, tot_chains=TOT_CHAINS,
+            tot_draws=TOT_DRAWS, **kw) -> pd.DataFrame:
+    from pipeline.blocks._china_model import _panel_sha
+
     ctx = ChainContext()
     bases = bases or default_bases()
-    done = set()
-    frames = []
-    if Path(out).exists():
-        prev = pd.read_parquet(out)
-        frames.append(prev)
-        done = set(prev.base.unique())
-    all_checks = {}
+    fp = fingerprint(bases, panel_sha=_panel_sha(ctx.mm, ctx.qq),
+                     tot_chains=tot_chains, tot_draws=tot_draws)
+    frames, done = _load_resume_state(out, fp)      # refuses on any mismatch
+
+    out = Path(out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fpath = out.with_name("exact_chain_fingerprint.json")
+    if fpath.exists():                               # extend requested bases
+        stored = json.loads(fpath.read_text())
+        fp["requested_bases"] = sorted(set(stored.get("requested_bases", []))
+                                       | set(fp["requested_bases"]))
+    fpath.write_text(json.dumps(fp, indent=2, default=str))
+    cpath = out.with_name("exact_chain_checks.json")
+
     for base in bases:
         if str(base) in done:
             continue
         t0 = time.time()
         try:
-            rows, checks = run_origin(ctx, base, **kw)
+            rows, checks = run_origin(ctx, base, tot_chains=tot_chains,
+                                      tot_draws=tot_draws, **kw)
         except Exception as exc:
             print(f"[exact-chain] {base}  FAILED {type(exc).__name__}: {exc}", flush=True)
             continue
-        all_checks[str(base)] = checks
         frames.append(pd.DataFrame(rows))
         cur = pd.concat(frames, ignore_index=True)
-        Path(out).parent.mkdir(parents=True, exist_ok=True)
-        tmp = Path(out).with_suffix(".tmp")
+        tmp = out.with_suffix(".tmp")
         cur.to_parquet(tmp)
         tmp.replace(out)
-        print(f"[exact-chain] {base}  ok ({time.time()-t0:.0f}s)", flush=True)
-    if all_checks:
-        cpath = Path(out).with_name("exact_chain_checks.json")
+        # checks move in lockstep with the parquet (same cadence, so a crash
+        # between origins never leaves the two out of step)
         old = json.loads(cpath.read_text()) if cpath.exists() else {}
-        old.update(all_checks)
+        old[str(base)] = checks
         cpath.write_text(json.dumps(old, indent=2))
-    return pd.read_parquet(out)
+        print(f"[exact-chain] {base}  ok ({time.time()-t0:.0f}s)", flush=True)
+    return pd.read_parquet(out) if out.exists() else pd.DataFrame()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--start", default="2019Q1")
     parser.add_argument("--end", default="2025Q3")
+    parser.add_argument("--new", action="store_true",
+                        help="supersede any existing artifact and start fresh")
     args = parser.parse_args()
+    if args.new:
+        moved = supersede(OUT)
+        print(f"[exact-chain] superseded previous artifact -> {moved.name}")
     run_all(default_bases(args.start, args.end))

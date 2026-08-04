@@ -24,3 +24,24 @@ value; the larger lag is the safe direction): `targets/commodities.py`
 (DELAYS and the TARGETS table), `notebooks/peru/forecast/common.py`, and the
 curated registry entries. `pipeline/blocks/peru.py` already used 40 for its
 released-quarter gate.
+
+## Follow-up audit additions (2026-08-04)
+
+The declared-inputs contract test (`tests/test_input_contract.py`) extracts
+every series production consumes from the model specifications themselves and
+requires one monitored registry entry each. It surfaced three gaps, all fixed:
+
+- `us_fedfunds` (NEW, required, monitored on `input/us/us_monthly.parquet`):
+  fixed condition of the China Cond-BVAR system and the Peru S1 system. ALIAS
+  reconciliation: the Peru spec3 panel ingests the same upstream FRED series
+  as `fed` (1 day lag); both entries now cross-reference each other. Two
+  monitored columns, one source; neither is optional.
+- `us_cpi_yoy` (NEW, required, monitored, 12 day lag from targets/usa.py):
+  fixed condition of the China Cond-BVAR and a steady-state anchor of
+  Cond-BVAR+SS.
+- `g_pbim` (NEW, required, monitored, 51 day lag): the RAW X13-adjusted Peru
+  monthly proxy column the refresh due-gate watches; companion entry of
+  `g_pbim_yoy` (same upstream series, different processed column).
+
+Registry: 116 series, 32 required for publication. No variable was made
+optional to satisfy the preflight.

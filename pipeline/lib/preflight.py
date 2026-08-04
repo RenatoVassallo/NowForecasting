@@ -63,6 +63,10 @@ def run_preflight(store, params) -> pd.DataFrame:
     registry = load_registry()
     observations = collect_observations(registry)
     events = ev.read()
+    if len(events) and "attempted_at" in events.columns:
+        # only events KNOWN by the as-of drive a (possibly historical) gate
+        cutoff = pd.Timestamp(as_of).normalize() + pd.Timedelta(days=1)
+        events = events[pd.to_datetime(events["attempted_at"]) < cutoff]
     table = build_availability(registry, observations, events=events, as_of=as_of)
 
     d = store.dir("data_quality")

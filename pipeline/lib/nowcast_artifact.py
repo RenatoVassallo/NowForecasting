@@ -16,10 +16,12 @@ figure averaged only Bridge and P-MIDAS. The rule now:
   the members whose live nowcast is finite. Both the learned and the realized
   weights are stored, plus the list of missing members.
 
-The artifact is one CSV row: ``products/peru_nowcast_official.csv`` plus a
-copy in the run directory. Consumers must check ``as_of`` against their run
-context; a mismatch means the stages were run on different information sets
-and publication must stop.
+The artifact is one CSV row written INSIDE the run directory (the staged run
+is the only information surface; publication to products/ happens after
+promotion via ``pipeline.lib.publish``). Consumers pass the run-local path
+explicitly and must check ``as_of`` against their run context; a mismatch
+means the stages were run on different information sets and publication must
+stop.
 """
 
 from __future__ import annotations
@@ -30,8 +32,8 @@ import numpy as np
 import pandas as pd
 
 REPO = Path(__file__).resolve().parents[2]
-OFFICIAL_PATH = REPO / "products" / "peru_nowcast_official.csv"
-SWEEP_PATH = REPO / "products" / "peru_nowcast_sweep.csv"
+OFFICIAL_NAME = "peru_nowcast_official.csv"
+SWEEP_NAME = "peru_nowcast_sweep.csv"
 
 
 def official_from(nowcasts: pd.DataFrame, weights: pd.DataFrame, pools: dict,
@@ -48,6 +50,8 @@ def official_from(nowcasts: pd.DataFrame, weights: pd.DataFrame, pools: dict,
                            "must run before an official artifact can exist")
     live["origin_date"] = pd.to_datetime(live.origin_date)
     newest = live.sort_values("origin_date").iloc[-1]
+    from nowcast.release_cycle import require_exact_origin
+    require_exact_origin(newest.origin_date, as_of, "official Peru nowcast")
     quarter = pd.Period(pd.Timestamp(newest.ref_quarter), freq="Q")
     value = float(newest.y_hat)
     info_idx = float(newest.get("info_index", np.nan))
@@ -125,6 +129,7 @@ def sweep_from(nowcasts: pd.DataFrame, *, adaptive_name: str, as_of) -> pd.DataF
 
 
 def write_official(store, result, *, as_of) -> Path:
+    """Write the official artifact and sweep INSIDE the run directory."""
     from pipeline.config import metadata
 
     frame = official_from(result.nowcasts, result.weights, result.pools,
@@ -132,19 +137,18 @@ def write_official(store, result, *, as_of) -> Path:
                           adaptive_name=metadata.ADAPTIVE["name"], as_of=as_of)
     sweep = sweep_from(result.nowcasts,
                        adaptive_name=metadata.ADAPTIVE["name"], as_of=as_of)
-    OFFICIAL_PATH.parent.mkdir(parents=True, exist_ok=True)
-    frame.to_csv(OFFICIAL_PATH, index=False)
-    sweep.to_csv(SWEEP_PATH, index=False)
-    for name, obj in ((OFFICIAL_PATH.name, frame), (SWEEP_PATH.name, sweep)):
+    out = None
+    for name, obj in ((OFFICIAL_NAME, frame), (SWEEP_NAME, sweep)):
         run_copy = Path(store.root) / name
         obj.to_csv(run_copy, index=False)
         if hasattr(store, "_track"):
             store._track(run_copy, "official-nowcast")
-    return OFFICIAL_PATH
+        out = out or run_copy
+    return out
 
 
-def load_sweep(expected_as_of, path: Path | None = None) -> pd.DataFrame:
-    p = Path(path) if path is not None else SWEEP_PATH
+def load_sweep(expected_as_of, path: Path) -> pd.DataFrame:
+    p = Path(path)
     if not p.exists():
         raise FileNotFoundError(
             f"official nowcast sweep missing ({p}); run the nowcast stage "
@@ -158,9 +162,13 @@ def load_sweep(expected_as_of, path: Path | None = None) -> pd.DataFrame:
     return d
 
 
-def load_official(expected_as_of, path: Path | None = None) -> pd.Series:
-    """Read and validate the official nowcast for a consumer stage."""
-    p = Path(path) if path is not None else OFFICIAL_PATH
+def load_official(expected_as_of, path: Path) -> pd.Series:
+    """Read and validate the official nowcast for a consumer stage.
+
+    ``path`` is the RUN-LOCAL artifact; there is no global default, so a
+    consumer can never silently read a stale published surface.
+    """
+    p = Path(path)
     if not p.exists():
         raise FileNotFoundError(
             f"official nowcast artifact missing ({p}); run the nowcast stage "

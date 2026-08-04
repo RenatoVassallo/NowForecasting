@@ -36,7 +36,6 @@ import pandas as pd
 from pipeline.lib.calibration_assets import asset_path
 
 REPO = Path(__file__).resolve().parents[2]
-CHAIN = REPO / "output" / "backtests" / "exact_chain.parquet"
 PRIOR = "peru_s1_day30"           # frozen calibration asset (day-30 prior pool)
 LEVELS = (0.30, 0.60, 0.90)
 MIN_POOL = 30          # pooled errors needed before an origin becomes evaluable
@@ -147,10 +146,13 @@ def _score_row(y, mode, sl, sr) -> dict:
     return out
 
 
-def load_errors() -> tuple[pd.DataFrame, pd.DataFrame]:
+def load_errors(chain_path=None) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Chain + prior error pools. Default: the FROZEN exact-chain asset; the
+    research runner may pass a fresh artifact path explicitly."""
     import targets
 
-    chain = pd.read_parquet(CHAIN)
+    chain = pd.read_parquet(chain_path if chain_path is not None
+                            else asset_path("exact_chain"))
     chain = chain[chain.model == "S1-chain"].copy()
     _, qq, _ = targets.get("peru_gdp").load_panel()
     y = qq["g_pbiq"].dropna()
@@ -177,8 +179,9 @@ def run(out_dir: Path | None = None):
     horizons = sorted(chain.h.unique())
     origins = sorted(chain.origin.unique())
 
-    # today's published scales, as LOOKAHEAD references
-    fan = pd.read_csv(REPO / "products" / "peru_gdp_fan.csv")
+    # today's published scales, as LOOKAHEAD references: read from the newest
+    # PROMOTED run (the publication pointer), never the mutable global surface
+    fan = pd.read_csv(REPO / "output" / "runs" / "latest" / "peru_gdp_fan.csv")
     ref_scales = {
         REFERENCES[0]: {int(r.h): {"sigma_left": r.sigma_left,
                                    "sigma_right": r.sigma_right, "shift": 0.0}
@@ -282,16 +285,18 @@ def production_fits(as_of, H: int = 8):
 
     day1 = knowable_before(_legacy("peru_s1_day1"), as_of)
     d30 = _legacy(PRIOR)
-    if CHAIN.exists():
-        ch = pd.read_parquet(CHAIN)
-        ch = ch[(ch.model == "S1-chain")].copy()
-        import targets
-        _, qq, _ = targets.get("peru_gdp").load_panel()
-        y = qq["g_pbiq"].dropna()
-        y.index = pd.PeriodIndex(y.index, freq="Q").astype(str)
-        ch["err"] = ch.ref.map(y.to_dict()) - ch.y_hat
-        d30 = pd.concat([d30, ch[["base", "ref", "h", "err"]].dropna()],
-                        ignore_index=True)
+    # the exact-chain errors are a FROZEN, hash-verified calibration asset:
+    # published bands can never depend on the presence or state of a mutable
+    # local file (asset_path raises on absence or tampering)
+    ch = pd.read_parquet(asset_path("exact_chain"))
+    ch = ch[(ch.model == "S1-chain")].copy()
+    import targets
+    _, qq, _ = targets.get("peru_gdp").load_panel()
+    y = qq["g_pbiq"].dropna()
+    y.index = pd.PeriodIndex(y.index, freq="Q").astype(str)
+    ch["err"] = ch.ref.map(y.to_dict()) - ch.y_hat
+    d30 = pd.concat([d30, ch[["base", "ref", "h", "err"]].dropna()],
+                    ignore_index=True)
     day30 = knowable_before(d30, as_of)
 
     def _shape(avail):

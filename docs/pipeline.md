@@ -50,6 +50,20 @@ or publication stops (`pipeline/lib/bundle.py`).
 5. a failed run keeps its staging directory with a `_FAILED` marker; it is
    never promoted, never `latest`, and never a bundle-fallback candidate
 
+## Publication (transactional, versioned)
+
+Publication is a transaction owned by `pipeline/lib/publish.py`: the promoted
+run's declared surface is staged into a temporary directory, every file is
+verified (size and sha256) against the run manifest, a publication manifest
+(run id, as-of, code version, per-file hashes) is written, the directory is
+atomically renamed to `products/published/<run_id>/`, and only then does the
+single authoritative `products/latest` pointer switch. Any failure leaves the
+previous publication and the pointer untouched, and each release is built
+fresh, so stale figures cannot linger. The OLD flat generated paths directly
+under `products/` are DEPRECATED (frozen as of their last flat publication);
+downstream consumers read `products/latest/`. The assembly package's source
+files under `products/` are never touched.
+
 ## Frozen calibration assets
 
 Research backtests that production consumes (combination weights, fan error

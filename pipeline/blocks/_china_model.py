@@ -116,7 +116,8 @@ def build_members(nowcast_fn):
                                              _name="D-ARX(leaders)"),
         "BVAR(3v)": BVARNowcaster(variables=["ip_cum_yoy", "m2_yoy"], lags=2,
                                   post_draws=800, sample_start=SAMPLE_START,
-                                  min_train=28, _name="BVAR(3v)"),
+                                  min_train=28, min_months=2,  # merged Jan-Feb
+                                  _name="BVAR(3v)"),
         "Cond-BVAR": ConditionalBVARNowcaster(
             **cond_kwargs(), sample_start=SAMPLE_START,
             prior_params=TIGHT, glp_select=(), _name="Cond-BVAR"),
@@ -201,6 +202,7 @@ def live_profile(as_of: pd.Timestamp):
     live_combo = combo[combo.y_true.isna() & combo.y_hat.notna()].copy()
     live_combo["origin_date"] = pd.to_datetime(live_combo.origin_date)
     newest = live_combo.sort_values("origin_date").iloc[-1]
+    rcyc.require_exact_origin(newest.origin_date, as_of, "China nowcast node")
     nc_hat = float(newest.y_hat)
     info_idx = float(newest.get("info_index", np.nan))
     bin_now = int(np.clip(np.digitize([info_idx], np.linspace(0, 1, 5)[1:-1]), 0, 3)[0])

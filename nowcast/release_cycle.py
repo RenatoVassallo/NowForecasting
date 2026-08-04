@@ -83,6 +83,20 @@ def run_horse_race(panel, spec, models: dict, *, n_jobs: int = 8,
 # --------------------------------------------------------------------------- #
 # Live sweep (the current, unpublished quarter)
 # --------------------------------------------------------------------------- #
+def require_exact_origin(origin, as_of, what: str) -> None:
+    """The published nowcast's origin must BE the run's as-of date.
+
+    Relabelling an older origin with a newer as-of would claim an information
+    set the forecast never saw; consumers refuse instead.
+    """
+    o, a = pd.Timestamp(origin).normalize(), pd.Timestamp(as_of).normalize()
+    if o != a:
+        raise ValueError(
+            f"{what}: origin {o.date()} does not equal the run as-of "
+            f"{a.date()}; the live sweep must include the exact as-of origin "
+            "(never relabel an old origin)")
+
+
 def live_path(panel, spec, models: dict, *, step_days: int = 7,
               days_before: int = 120, min_train: int = 20,
               today: pd.Timestamp | None = None) -> pd.DataFrame:
@@ -93,7 +107,7 @@ def live_path(panel, spec, models: dict, *, step_days: int = 7,
     because its realized value does not exist yet. ``y_true`` is NaN.
     """
 
-    today = pd.Timestamp.now().normalize() if today is None else pd.Timestamp(today)
+    today = pd.Timestamp.now().normalize() if today is None else pd.Timestamp(today).normalize()
     target = spec.target
     delay = spec.target_delay_days
 
@@ -106,11 +120,20 @@ def live_path(panel, spec, models: dict, *, step_days: int = 7,
                               pd.DataFrame({target: [np.nan]}, index=[Q])]).sort_index()
 
     pub, q_end = publication_date(Q, delay), quarter_end(Q)
-    origins = [o for o in make_daily_origin_grid(pub, days_before=days_before,
-                                                 days_after=0, step_days=step_days)
-               if o <= today]
-    if not origins:
-        return pd.DataFrame()
+    if today > pub:
+        # a positive-lead "live" nowcast would be a forecast of a number that
+        # should already exist: the target is stale, refuse instead
+        raise RuntimeError(
+            f"stale target: {target} for {pd.Period(Q, freq='Q')} was due at "
+            f"its expected publication date {pub.date()} but is still missing "
+            f"from the panel at {today.date()}. Refresh the data (or fix the "
+            "release metadata); a live sweep must not run past publication.")
+    # the weekly grid gives the historical sweep; the run's EXACT as-of date
+    # is always the terminal origin, so the published nowcast's information
+    # set is the run's information set (de-duplicated when today is on-grid)
+    origins = sorted({o for o in make_daily_origin_grid(pub, days_before=days_before,
+                                                        days_after=0, step_days=step_days)
+                      if o <= today} | {today})
 
     engine = RealtimeEngine(p2)
     models = {name: copy.deepcopy(m) for name, m in models.items()}

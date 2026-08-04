@@ -166,6 +166,10 @@ class BVARNowcaster(BaseNowcaster):
     covid_window: tuple | None = ("2020Q1", "2021Q4")
     covid_mode: str | None = "lenza-primiceri"
     min_train: int = 40
+    min_months: int = 3               # months per quarter for a "complete" row;
+                                      # 2 tolerates a merged Jan-Feb release
+                                      # (dropping the row would splice Q4->Q2
+                                      # into adjacent VAR lags)
     sample_start: str | None = None   # regime-consistent estimation
     prior_params: dict | None = None  # e.g. Banbura soc/dio keys (MacroPy >= 0.1.9)
     seed: int = 7
@@ -181,10 +185,11 @@ class BVARNowcaster(BaseNowcaster):
             return None
         q = y.to_frame()
         Xq = _quarterly_means(info.monthly, self.variables)
-        # keep only quarters whose three months are all released (balanced system)
+        # keep only quarters whose months are all released (balanced system);
+        # min_months=2 tolerates a structurally merged month (China Jan-Feb)
         counts = info.monthly[list(self.variables)].notna().groupby(
             pd.PeriodIndex(info.monthly.index, freq="Q")).sum()
-        complete = counts.index[(counts >= 3).all(axis=1)]
+        complete = counts.index[(counts >= self.min_months).all(axis=1)]
         keep = pd.DatetimeIndex([_quarter_stamp(p) for p in complete])
         for c in Xq.columns:
             q[c] = Xq[c].reindex(q.index).where(q.index.isin(keep))

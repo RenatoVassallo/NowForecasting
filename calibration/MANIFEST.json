@@ -25,25 +25,128 @@
       "role": "legacy S1 conditional-BVAR backtest at day-30 information state; prior pool for sequential fan calibration"
     },
     "china_ladder_full.parquet": {
-      "sha256": "f69120d4f6b99c834f576c293d5ce582c6b5b43efa4e0ace989d81fdb68d21ee",
-      "bytes": 21783,
-      "frozen_from": "notebooks/china/forecast/output/backtests/ladder_full.parquet",
-      "producer": "notebooks/china (nowcast backtesting)",
-      "role": "China release-cycle nowcast ladder; Adaptive-IC weights for the satellite nowcast"
+      "sha256": "8e611fe38b0c135566a68f5adb641f74551ca0f06564931929724909ae5cdcba",
+      "bytes": 22189,
+      "frozen_from": "output/china_assets_regen/china_ladder_full.parquet",
+      "producer": "pipeline/lib/china_assets.py",
+      "role": "China release-cycle nowcast ladder; Adaptive-IC weights for the satellite nowcast",
+      "panel_rule": "january_blank_combined_feb_release",
+      "generated_on": "2026-08-04",
+      "code_version": "c83b4cf+dirty.ef21bc20",
+      "evaluation_regime": "pseudo_real_time_final_vintage"
     },
     "china_horizon_2012floor.parquet": {
-      "sha256": "5e35627b0a200f26e597cb1504376e9ced0cec8b16330b7e2386b1c98f993dd3",
-      "bytes": 66491,
-      "frozen_from": "notebooks/china/forecast/output/backtests/horizon_2012floor.parquet",
-      "producer": "notebooks/china/forecast/03 (horse race, 2012 floor)",
-      "role": "China forecast horse-race backtest; Combo weights (PAST bases only; the live base is always recomputed) and TPN error calibration"
+      "sha256": "109d9d2c0f7963524cac8ce52a9d81384eec3b2cf026b1ec19f4fe11418d469a",
+      "bytes": 26934,
+      "frozen_from": "output/china_assets_regen/china_horizon_2012floor.parquet",
+      "producer": "pipeline/lib/china_assets.py",
+      "role": "China forecast horse-race backtest; Combo weights (PAST bases only; the live base is always recomputed) and TPN error calibration",
+      "panel_rule": "january_blank_combined_feb_release",
+      "generated_on": "2026-08-04",
+      "code_version": "c83b4cf+dirty.ef21bc20",
+      "evaluation_regime": "pseudo_real_time_final_vintage",
+      "eval_start": "2016-07-29",
+      "members": [
+        "RW",
+        "D-ARX(leaders)",
+        "BVAR(3v)",
+        "Cond-BVAR",
+        "Cond-BVAR+SS"
+      ]
     },
     "china_tilt_weo.parquet": {
-      "sha256": "664e6f9d41bcb2a1f1de7103fe0fbb319107d331704588b797e2455c881a6a5e",
-      "bytes": 11903,
-      "frozen_from": "notebooks/china/forecast/output/backtests/tilt_weo.parquet",
-      "producer": "notebooks/china/forecast/03 (WEO tilt)",
-      "role": "WEO-tilted China path backtest; the published path blends Combo and tilt with weight ALPHA"
+      "sha256": "4c232b8b2508e9174626b9f3a5dec91028cffb61699a14ea29f4854a0cce577a",
+      "bytes": 11860,
+      "frozen_from": "output/china_assets_regen/china_tilt_weo.parquet",
+      "producer": "pipeline/lib/china_assets.py",
+      "role": "WEO-tilted China path backtest; the published path blends Combo and tilt with weight ALPHA",
+      "panel_rule": "january_blank_combined_feb_release",
+      "generated_on": "2026-08-04",
+      "code_version": "c83b4cf+dirty.ef21bc20",
+      "evaluation_regime": "pseudo_real_time_final_vintage",
+      "seed": 7
+    },
+    "exact_chain.parquet": {
+      "sha256": "02273cbad9545e707729f7d4ff3c15676a2f1f382a11cecb990556ca3ee359bc",
+      "bytes": 15683,
+      "frozen_from": "output/backtests/exact_chain.parquet",
+      "producer": "pipeline/lib/exact_chain.py",
+      "role": "exact-chain replay errors (S1-chain + benchmarks) at day-30 origins; the ONLY chain-error input to production fan calibration (fan_calibration.production_fits)",
+      "evaluation_regime": "pseudo_real_time_final_vintage",
+      "generated_on": "2026-08-04",
+      "code_version": "c83b4cf+dirty.52995bb2",
+      "registry_sha": "5e028351843fe3f6a68bfb4390e8bfb1168226eaf4afa6bf633da199c891e258",
+      "origin_rule": "day 30 of the release cycle, one origin per base quarter",
+      "monte_carlo": "reduced vs production ToT settings (2x3000 vs 4x6000); measured error at base 2024Q2: mean 0.003pp, max 0.007pp across h=1..8",
+      "seeds": {
+        "tot_chains": [
+          7,
+          17
+        ],
+        "bvar": 7,
+        "fan_mc": {
+          "n_scenarios": 150,
+          "draws_per_scenario": 8,
+          "seed": 11
+        }
+      },
+      "base_quarters": "2019Q1 .. 2025Q3 (27 origins)",
+      "models": [
+        "AR(2)",
+        "BVAR-unconditional",
+        "Mean(4)",
+        "Median(4)",
+        "Nowcast-node",
+        "RW",
+        "S1-chain"
+      ],
+      "claim": "exact_rule_reduced_mc",
+      "dependencies": {
+        "pandas": "2.3.3",
+        "numpy": "2.4.6",
+        "scipy": "1.17.1",
+        "midas": "0.2.3",
+        "macropy": "0.1.10"
+      },
+      "panel_sha": "11ea156edaaf",
+      "model_spec": {
+        "system": [
+          "us_gdp_yoy_m",
+          "ip_cum_yoy",
+          "g_tdi",
+          "exp_eco3m",
+          "g_invq_m"
+        ],
+        "prior": {
+          "mn_mean": 1,
+          "lamda1": 0.2,
+          "lamda2": 0.5,
+          "lamda3": 1,
+          "lamda4": 100000.0
+        },
+        "floor": "2003-01-01",
+        "china_members": [
+          "RW",
+          "D-ARX(leaders)",
+          "BVAR(3v)",
+          "Cond-BVAR",
+          "Cond-BVAR+SS"
+        ],
+        "blend_alpha": 0.5
+      },
+      "draws": {
+        "tot_draws": 3000,
+        "bvar_post_draws": 800
+      },
+      "origin_day": 30,
+      "input_calibration_assets": {
+        "calibration/china_horizon_2012floor.parquet": "109d9d2c0f7963524cac8ce52a9d81384eec3b2cf026b1ec19f4fe11418d469a",
+        "calibration/china_ladder_full.parquet": "8e611fe38b0c135566a68f5adb641f74551ca0f06564931929724909ae5cdcba",
+        "calibration/china_tilt_weo.parquet": "4c232b8b2508e9174626b9f3a5dec91028cffb61699a14ea29f4854a0cce577a",
+        "calibration/peru_ladder_full.parquet": "8a6932e77fdb55e15a43495fd22c24b366aff66456d2051d260273509aa682fc",
+        "calibration/peru_s1_day1.parquet": "1c566f4ddad7dd0536e7c2136576b9658e0e7a3b3c93924f09479d0bc1ea8a10",
+        "calibration/peru_s1_day30.parquet": "a9ee0a131413452d69930eaae5882f5a8c4935271f122829dcc9472d5a0c7eab"
+      }
     }
   }
 }

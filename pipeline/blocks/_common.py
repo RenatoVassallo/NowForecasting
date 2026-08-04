@@ -146,6 +146,33 @@ def information_stamp(target_spec, current_q, panel=None, as_of=None) -> dict:
             "days_to_publication": days}
 
 
+def released_last(series_q: pd.Series, delay_days: int, as_of) -> pd.Period:
+    """Last quarter of a quarterly series RELEASED at ``as_of``.
+
+    The snapshot may already contain later prints (final-vintage data); the
+    base quarter is set by the release rule, never by whatever the file holds.
+    """
+    s = series_q.dropna()
+    per = pd.PeriodIndex(s.index, freq="Q")
+    rel = per.to_timestamp(how="end") + pd.Timedelta(days=int(delay_days))
+    ok = per[rel <= pd.Timestamp(as_of).normalize()]
+    if len(ok) == 0:
+        raise RuntimeError(f"no released observation at {pd.Timestamp(as_of).date()} "
+                           f"under a {delay_days}-day rule")
+    return ok.max()
+
+
+def _dest(out_dir, fname: str) -> Path:
+    """Run-local artifact path. Blocks never write the global surface: pass
+    ``store.dir('blocks')`` in production or an explicit directory ad hoc;
+    publication to products/ happens only after promotion (pipeline.lib.publish)."""
+    if out_dir is None:
+        raise ValueError(
+            f"out_dir is required for {fname}: blocks write inside the run "
+            "directory only (see pipeline.lib.publish for the published surface)")
+    return Path(out_dir) / fname
+
+
 def write(df: pd.DataFrame, path: Path, stamp: dict | None = None) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     if stamp:

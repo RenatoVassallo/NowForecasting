@@ -38,7 +38,13 @@ from pipeline.lib.context import RunContext               # noqa: E402
 from pipeline.lib.store import RunStore                   # noqa: E402
 
 
-def main(as_of=None, run_id: str | None = None) -> Path:
+def main(as_of=None, run_id: str | None = None,
+         report_from: str | None = None) -> Path:
+    from pipeline.lib.stagegraph import resolve_report_source, validate_stages
+
+    if report_from is not None:
+        return _report_from_run(report_from, run_id)
+    validate_stages(params.STAGES)               # refuse BEFORE any output exists
     ctx = RunContext.create(as_of=as_of, run_id=run_id)
     store = RunStore(params.RUNS_DIR, ctx=ctx, staged=True)
     from core.evaluation import EVALUATION_REGIME
@@ -55,6 +61,7 @@ def main(as_of=None, run_id: str | None = None) -> Path:
     panels: dict = {}
     whatsnew = ""
     lines: list[str] = []
+    input_pins: dict = {}
 
     def _stage(name, fn):
         t = time.time()
@@ -79,6 +86,13 @@ def main(as_of=None, run_id: str | None = None) -> Path:
             from pipeline.lib.preflight import run_preflight
             _stage("preflight", lambda: run_preflight(store, params))
             print(f"[gate] availability preflight ({timings['preflight']:.0f}s) ok")
+            # pin every production input NOW; verified again before _SUCCESS,
+            # so a cache mutated mid-run can never publish (fail closed)
+            from pipeline.lib.inputs import pin_inputs, sources_code_sha
+            input_pins = pin_inputs()
+            store.set_meta(input_hashes=input_pins,
+                           sources_code_sha=sources_code_sha())
+            print(f"[gate] {len(input_pins)} input files pinned")
 
         if params.STAGES.get("nowcast"):
             from pipeline.stages import domestic as s_dom
@@ -117,13 +131,75 @@ def main(as_of=None, run_id: str | None = None) -> Path:
         print(f"[failed] staging kept for forensics: {store.root}")
         raise
 
+    if input_pins:                                   # inputs must not have moved
+        from pipeline.lib.inputs import verify_inputs
+        verify_inputs(input_pins)
     store.set_meta(status="success", timings=timings, stage_status=status)
     store.write_manifest()                           # hashes + validates artifacts
     store.mark_success()
     root = store.promote()                           # atomic rename into runs/
     if params.UPDATE_LATEST_SYMLINK:                 # only after promotion
         store.update_latest_symlink()
+    if getattr(params, "PUBLISH_PRODUCTS", True):    # one controlled publish step,
+        from pipeline.lib.publish import publish_run  # promoted runs only
+        copied = publish_run(root)
+        print(f"[publish] {len(copied)} artifacts -> products/")
     print(f"[done] {root}")
+    return root
+
+
+def _report_from_run(source_id: str, run_id: str | None) -> Path:
+    """Re-render the report from a NAMED promoted run's artifacts.
+
+    The new run consumes the source run's blocks, fan, nowcast artifacts and
+    figures under the SOURCE's as-of date, records ``source_run`` in its
+    manifest, and never publishes (publication belongs to full runs).
+    """
+    import shutil
+    from types import SimpleNamespace
+
+    from pipeline.lib.stagegraph import resolve_report_source
+
+    src = resolve_report_source(params.RUNS_DIR, source_id)
+    ctx = RunContext.create(as_of=src.as_of, run_id=run_id)
+    store = RunStore(params.RUNS_DIR, ctx=ctx, staged=True)
+    store.set_meta(source_run=src.run_id,
+                   source_code_version=src.manifest.get("code_version"),
+                   params={"mode": "report_from_run"})
+    print(f"[run] {store.run_id}  report from {src.run_id} "
+          f"(as_of {src.as_of.date()})  ->  staging {store.root}")
+
+    figs = src.root / "figures"
+    if figs.is_dir():
+        dest = store.dir("figures")
+        for f in sorted(figs.glob("*")):
+            if f.is_file():
+                shutil.copy2(f, dest / f.name)
+                store._track(dest / f.name, "figure")
+    store.blocks = src.blocks
+    store.report_source = SimpleNamespace(root=src.root, runs_dir=src.runs_dir,
+                                          blocks=src.blocks, ctx=ctx)
+    timings: dict = {}
+    try:
+        import time as _t
+
+        from pipeline.stages import report as s_report
+
+        t = _t.time()
+        s_report.run(store, params, "", [f"- report re-rendered from {src.run_id}"],
+                     timings)
+        timings["report"] = _t.time() - t
+    except BaseException as exc:
+        store.set_meta(status="failed", error=f"{type(exc).__name__}: {exc}")
+        store.write_manifest(strict=False)
+        store.abort(f"{type(exc).__name__}: {exc}")
+        raise
+    store.set_meta(status="success", timings=timings,
+                   stage_status={"report": "ok"})
+    store.write_manifest()
+    store.mark_success()
+    root = store.promote()
+    print(f"[done] {root} (re-render; not published, latest unchanged)")
     return root
 
 
@@ -135,5 +211,8 @@ if __name__ == "__main__":
                         help="release-selection cutoff (YYYY-MM-DD); today if omitted")
     parser.add_argument("--run-id", default=None,
                         help="explicit run identifier; derived from as-of if omitted")
+    parser.add_argument("--report-from", default=None, metavar="RUN_ID",
+                        help="re-render the report from a NAMED promoted run "
+                             "(no estimation, no publication)")
     args = parser.parse_args()
-    main(as_of=args.as_of, run_id=args.run_id)
+    main(as_of=args.as_of, run_id=args.run_id, report_from=args.report_from)

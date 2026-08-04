@@ -5,7 +5,9 @@ ensembles under one label. The artifact is now generated once by the nowcast
 stage and consumed by the fan, figures and report; these tests pin its
 contract: value identity with the newest live Adaptive-IC origin, recorded
 members and weights, the documented missing-member renormalization, and the
-as-of coherence check on the consumer side.
+as-of coherence check on the consumer side. Under the exact-origin
+contract (G1) the artifact's origin equals the as-of, so fixtures pass the
+newest live origin as as_of.
 """
 
 from __future__ import annotations
@@ -42,7 +44,7 @@ def _inputs(rw_live=2.2):
 def test_value_is_the_newest_live_adaptive_origin():
     nowcasts, weights, pools = _inputs()
     art = official_from(nowcasts, weights, pools, members=MEMBERS,
-                        adaptive_name=ANAME, as_of="2026-08-03").iloc[0]
+                        adaptive_name=ANAME, as_of="2026-07-30").iloc[0]
     assert art["value"] == pytest.approx(2.64)
     assert art["quarter"] == "2026Q2"
     assert art["origin_date"] == "2026-07-30"
@@ -56,7 +58,7 @@ def test_value_is_the_newest_live_adaptive_origin():
 def test_missing_member_weight_renormalizes_proportionally():
     nowcasts, weights, pools = _inputs(rw_live=np.nan)
     art = official_from(nowcasts, weights, pools, members=MEMBERS,
-                        adaptive_name=ANAME, as_of="2026-08-03").iloc[0]
+                        adaptive_name=ANAME, as_of="2026-07-30").iloc[0]
     assert art["missing_members"] == "RW"
     realized = {k: float(v) for k, v in
                 (kv.split(":") for kv in art["weights_realized"].split("|"))}
@@ -69,12 +71,12 @@ def test_missing_member_weight_renormalizes_proportionally():
 def test_consumer_rejects_a_stale_as_of(tmp_path):
     nowcasts, weights, pools = _inputs()
     frame = official_from(nowcasts, weights, pools, members=MEMBERS,
-                          adaptive_name=ANAME, as_of="2026-08-01")
+                          adaptive_name=ANAME, as_of="2026-07-30")
     p = tmp_path / "official.csv"
     frame.to_csv(p, index=False)
-    row = load_official(expected_as_of="2026-08-01", path=p)
+    row = load_official(expected_as_of="2026-07-30", path=p)
     assert float(row["value"]) == pytest.approx(2.64)
     with pytest.raises(ValueError, match="information set"):
         load_official(expected_as_of="2026-08-03", path=p)
     with pytest.raises(FileNotFoundError):
-        load_official(expected_as_of="2026-08-01", path=tmp_path / "absent.csv")
+        load_official(expected_as_of="2026-07-30", path=tmp_path / "absent.csv")

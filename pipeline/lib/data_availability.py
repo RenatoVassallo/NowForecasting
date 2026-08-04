@@ -247,8 +247,12 @@ def collect_observations(
     return pd.DataFrame(out)
 
 
-def load_events(path: str | Path | None) -> pd.DataFrame:
-    """Read an optional append-only refresh event table."""
+def load_events(path: str | Path | None, as_of=None) -> pd.DataFrame:
+    """Read an optional append-only refresh event table.
+
+    ``as_of`` filters to events KNOWN by that date: a historical dashboard
+    must not be driven by refresh attempts recorded later.
+    """
 
     if path is None:
         return pd.DataFrame(columns=["internal_code", "attempted_at", "status", "detail"])
@@ -270,6 +274,9 @@ def load_events(path: str | Path | None) -> pd.DataFrame:
     if "detail" not in events:
         events["detail"] = ""
     events["attempted_at"] = pd.to_datetime(events["attempted_at"])
+    if as_of is not None:
+        cutoff = pd.Timestamp(as_of).normalize() + pd.Timedelta(days=1)
+        events = events[events["attempted_at"] < cutoff]
     return events
 
 
@@ -491,7 +498,7 @@ def main(argv: list[str] | None = None) -> int:
 
     registry = load_registry(args.registry)
     observations = collect_observations(registry)
-    events = load_events(args.events)
+    events = load_events(args.events, as_of=args.as_of)
     table = build_availability(registry, observations, events=events, as_of=args.as_of)
     text = render_markdown(table, as_of=args.as_of)
     if args.output:

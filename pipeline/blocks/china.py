@@ -15,11 +15,11 @@ import pandas as pd
 
 from pipeline.lib.calibration_assets import asset_path
 
-from ._common import REPO, fan_frame, information_stamp, write
+from ._common import REPO, _dest, fan_frame, information_stamp, write
 from ._china_model import ALPHA, MEMBERS, live_profile
 
 
-def build(ctx=None, **_) -> tuple[pd.DataFrame, list[str], object]:
+def build(ctx=None, out_dir=None, **_) -> tuple[pd.DataFrame, list[str], object]:
     import forecast
     from forecast.fan_mc import fit_tpn_mle
     from pipeline.lib.context import resolve_as_of
@@ -70,7 +70,7 @@ def build(ctx=None, **_) -> tuple[pd.DataFrame, list[str], object]:
     df = fan_frame(periods, centre, nfits, src)
     stamp = information_stamp(tgt.SPEC, periods[0], as_of=as_of)
     stamp.update(prov)
-    out = write(df, REPO / "products/blocks/china_path_uncertainty.csv", stamp)
+    out = write(df, _dest(out_dir, "china_path_uncertainty.csv"), stamp)
     lines = [f"- **China**: {centre[0]:.2f}% nowcast, {centre[-1]:.2f}% at h=8 "
              f"(WEO {prov['weo_round']}: {prov['weo_current_year']:.1f}%); "
              f"90% band {df.width90.iloc[0]:.2f} to {df.width90.iloc[-1]:.2f}pp"]

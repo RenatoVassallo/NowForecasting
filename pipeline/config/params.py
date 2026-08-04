@@ -12,11 +12,15 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 RUNS_DIR = REPO_ROOT / "output" / "runs"     # one output/ tree; each run = output/runs/<id>
 
 # --- which stages run (in order) ---------------------------------------------
+# The graph is validated up front (pipeline/lib/stagegraph.py): report needs
+# fanchart, fanchart needs forecast+nowcast, forecast needs nowcast. The safe
+# default is the full coherent run; to re-render a report without recomputing,
+# use the EXPLICIT mode: python -m pipeline.main --report-from RUN_ID
 STAGES = {
-    "data":     False,   # 1. refresh + snapshot every source, report what's new
-    "nowcast":  False,   # 2. current-quarter nowcasts (China satellite, Peru domestic)
-    "forecast": False,   # 3. block chain (usa -> china -> commodities) + Peru BVAR fan
-    "fanchart": False,   # 4. the five published figures
+    "data":     True,    # 1. refresh + snapshot every source, report what's new
+    "nowcast":  True,    # 2. current-quarter nowcasts (China satellite, Peru domestic)
+    "forecast": True,    # 3. block chain (usa -> china -> commodities) + Peru BVAR fan
+    "fanchart": True,    # 4. the five published figures
     "report":   True,    # 5. report.pdf + report.md
 }
 
@@ -50,6 +54,10 @@ N_JOBS = 8
 
 # --- housekeeping -------------------------------------------------------------
 UPDATE_LATEST_SYMLINK = True   # output/runs/latest -> newest run
+PUBLISH_PRODUCTS = True        # after promotion ONLY: copy the promoted run's
+                               # product surface to products/ (pipeline.lib.publish)
+REPORT_PDF = True              # report stage MUST produce report.pdf; False is
+                               # the explicit TeX-only artifact contract
 
 # Restrict the chain to a subset while iterating, e.g. ("commodities", "peru").
 # Empty or None runs every block in dependency order.

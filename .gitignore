@@ -41,9 +41,13 @@ notebooks/
 
 # Generated artifacts: published fans, figures, weekly report
 products/**/*.csv
+products/blocks/bundle.json
 products/figures/
 products/report.pdf
 products/report.md
+products/published/
+products/latest
+products/.latest-tmp
 figures/
 **/figures/
 

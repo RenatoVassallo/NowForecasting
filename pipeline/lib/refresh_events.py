@@ -35,6 +35,14 @@ FIELDS = ("internal_code", "attempted_at", "as_of", "status", "detail",
           "override_effective_from", "override_effective_to")
 
 
+def _sources_sha() -> str:
+    # uncached on purpose: two sequential runs in one process must each see
+    # the loader code as it stands when their events are recorded
+    from pipeline.lib.inputs import sources_code_sha
+
+    return sources_code_sha()
+
+
 def file_sha(path: Path) -> str | None:
     p = Path(path)
     return hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else None
@@ -70,6 +78,9 @@ def record(internal_code: str, status: str, *, as_of, detail: str = "",
         "as_of": str(pd.Timestamp(as_of).date()),
         "status": status,
         "detail": str(detail)[:500],
+        # git cannot see sources/ (ignored): the loader-code content hash is
+        # the only record of WHICH ingestion code produced this attempt
+        "sources_code_sha": _sources_sha(),
         "source_url": source_url,
         "raw_response_sha256": raw_response_sha256,
         "parser_version": parser_version,

@@ -87,3 +87,21 @@ Artifacts: `output/backtests/fan_calibration_cells.parquet`,
 `fan_calibration_pools.csv`; the adopted rule lives in
 `pipeline/lib/fan_calibration.py:production_fits` and is consumed by the
 Peru block.
+
+## Follow-up audit addendum (2026-08-04)
+
+- The exact-chain errors behind `production_fits` are now a FROZEN,
+  hash-verified calibration asset (`calibration/exact_chain.parquet`); the
+  silent `if CHAIN.exists()` branch is gone, so published bands can no longer
+  depend on the presence of a mutable local file.
+- The chain was regenerated after the China calibration assets were rebuilt
+  under the corrected January-February timing rule: the 105 ex-COVID cells
+  moved by at most 0.08pp (mean 0.009pp) and the recalibrated variant table
+  reproduces this page's ordering (adopted rule WIS 0.736, cov90 0.895
+  [0.84, 0.93]); the published day-30 sigmas changed by at most 0.0013.
+- STATUS: the symmetric sequential rule is PROVISIONAL. Per-horizon coverage
+  rests on 9 to 18 cells with shared origin shocks; those estimates cannot
+  yet discriminate between nearby calibration rules. The 2023Q1+ window has
+  been inspected and is no longer an untouched holdout; the rule faces the
+  prospective window (outcomes from 2026Q2 on, frozen 2026-08-04) before any
+  refinement is considered.

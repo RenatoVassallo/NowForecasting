@@ -20,11 +20,34 @@ import pandas as pd
 EVALUATION_REGIME = "pseudo_real_time_final_vintage"
 SELECTION_END = pd.Period("2022Q4", freq="Q")       # tuning may look at <= this
 HOLDOUT_START = pd.Period("2023Q1", freq="Q")       # frozen forward on 2026-08-03
+# The 2023Q1+ window was INSPECTED during the 2026-08 audits (nowcast holdout
+# tables, chain scoring): it is no longer an untouched holdout for future
+# choices. Prospective evaluation scores outcomes realized AFTER the freeze
+# below against the record as it stood before their release.
+HOLDOUT_INSPECTED_ON = "2026-08-04"
+PROSPECTIVE_START = pd.Period("2026Q2", freq="Q")   # first outcome unseen at freeze
 
 
 def sample_label(ref_quarter) -> str:
+    """Three honest samples, never a false "untouched holdout".
+
+    - ``selection``: through 2022Q4 (modelling choices looked at this).
+    - ``inspected_post_selection``: 2023Q1 through 2026Q1. Frozen forward on
+      2026-08-03 but INSPECTED during the 2026-08 audits; it can support
+      descriptive reporting, never untouched-holdout claims.
+    - ``prospective``: 2026Q2 onward, outcomes unseen when the record froze
+      (2026-08-04). New rows land here by construction and can never merge
+      silently into the inspected sample.
+
+    ``HOLDOUT_START`` is retained as the HISTORICAL boundary of the frozen
+    window, not as a claim that the window is still untouched.
+    """
     q = pd.Period(pd.Timestamp(ref_quarter), freq="Q")
-    return "holdout" if q >= HOLDOUT_START else "selection"
+    if q <= SELECTION_END:
+        return "selection"
+    if q < PROSPECTIVE_START:
+        return "inspected_post_selection"
+    return "prospective"
 
 
 # --------------------------------------------------------------------------- #

@@ -110,9 +110,13 @@ def nowcast_scoreboard(rc: pd.DataFrame, *, exclude_years=(2020, 2021)) -> pd.Da
 
     rows = []
     full = piv.dropna(how="any")            # the strict common sample
-    for sample in ("selection", "holdout", "all"):
-        m = slice(None) if sample == "all" else (labels == sample)
-        sub = full[m] if sample != "all" else full
+    # three honest samples plus the aggregate; "all" is a REPORTING row only,
+    # and prospective rows can never merge into the inspected sample
+    for sample in ("selection", "inspected_post_selection", "prospective", "all"):
+        sub = full if sample == "all" \
+            else full[labels.reindex(full.index) == sample]
+        if sample != "all" and not len(sub):
+            continue
         tru = truth.reindex(sub.index)
         for model in sub.columns:
             e = tru - sub[model]

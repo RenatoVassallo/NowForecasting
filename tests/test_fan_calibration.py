@@ -60,9 +60,10 @@ def test_covid_weights_shape_the_fit():
 
 def test_production_fits_interface_and_no_lookahead():
     from pipeline.lib import fan_calibration as fc
+    from pipeline.lib.calibration_assets import ASSETS, ROOT
 
-    if not fc.CHAIN.exists():
-        pytest.skip("exact-chain artifact not present")
+    if not (ROOT / ASSETS["exact_chain"]).exists():
+        pytest.skip("frozen exact-chain asset not present")
     day1, day30 = fc.production_fits("2026-08-03", H=7)
     for fits in (day1, day30):
         assert set(fits) == set(range(1, 8))

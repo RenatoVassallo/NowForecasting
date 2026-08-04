@@ -8,7 +8,7 @@ import io
 import numpy as np
 import pandas as pd
 
-from ._common import (REPO, fan_frame, fill_structural_january,
+from ._common import (REPO, _dest, fan_frame, fill_structural_january,
                       information_stamp, write)
 
 VARS = ["g_us_indpro", "ip_cum_yoy", "g_copper", "g_wti", "us_vix", "g_pe_tot"]
@@ -164,7 +164,7 @@ def tot_path(as_of, *, chains=None, draws=None):
     return periods, centre, fits, seen_n, base
 
 
-def build(ctx=None, **_) -> tuple[pd.DataFrame, list[str], object]:
+def build(ctx=None, out_dir=None, **_) -> tuple[pd.DataFrame, list[str], object]:
     """Monthly draws averaged into quarters: observed months carry their weight,
     so the first node is narrow without any partial-quarter correction."""
     from pipeline.lib.context import resolve_as_of
@@ -179,7 +179,7 @@ def build(ctx=None, **_) -> tuple[pd.DataFrame, list[str], object]:
     df["conditioned_on_ragged_edge"] = True
     stamp = information_stamp(spec, periods[0], as_of=as_of)
     stamp["units"] = "pct_yoy_arithmetic"      # the Peru interface converts to log
-    out = write(df, REPO / "products/blocks/tot_path_uncertainty.csv", stamp)
+    out = write(df, _dest(out_dir, "tot_path_uncertainty.csv"), stamp)
     lines = [f"- **Terms of trade**: {centre[0]:.1f}% ({seen_n[0]}/3 months observed) "
              f"to {centre[-1]:.1f}% at h=8; 90% band {df.width90.iloc[0]:.1f} to "
              f"{df.width90.iloc[-1]:.1f}pp"]

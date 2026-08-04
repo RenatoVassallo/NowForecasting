@@ -9,13 +9,25 @@ import io
 import numpy as np
 import pandas as pd
 
-from ._common import (REPO, complete_quarters, fan_frame,
+from ._common import (REPO, _dest, complete_quarters, fan_frame,
                       fill_structural_january, information_stamp,
-                      released_first, write)
+                      released_first, released_last, write)
 
 SYSTEM = ["us_gdp_yoy_m", "ip_cum_yoy", "g_tdi", "exp_eco3m", "g_invq_m"]
 H = 8
 FAN_MC = {"n_scenarios": 150, "draws_per_scenario": 8, "seed": 11}
+EXP_DELAY_DAYS = 15         # business expectations: mid-next-month release
+
+
+def _released_expectations(series_m: pd.Series, as_of) -> float:
+    """Last expectations observation RELEASED at ``as_of`` (15-day rule)."""
+    s = series_m.dropna()
+    ends = pd.DatetimeIndex(s.index) + pd.offsets.MonthEnd(0)
+    ok = s[ends + pd.Timedelta(days=EXP_DELAY_DAYS)
+           <= pd.Timestamp(as_of).normalize()]
+    if ok.empty:
+        raise RuntimeError(f"no released expectations at {pd.Timestamp(as_of).date()}")
+    return float(ok.iloc[-1])
 
 
 def _empirical_fits(H, as_of):
@@ -39,7 +51,8 @@ def _panel(spec):
     return build_panel(spec), make_cond, nowcast_lookup
 
 
-def build(blocks: dict | None = None, ctx=None, **_) -> tuple[pd.DataFrame, list[str], object]:
+def build(blocks: dict | None = None, ctx=None, out_dir=None,
+          official_path=None, **_) -> tuple[pd.DataFrame, list[str], object]:
     import forecast
     import targets
     from forecast.fan_mc import fit_tpn_mle
@@ -49,9 +62,12 @@ def build(blocks: dict | None = None, ctx=None, **_) -> tuple[pd.DataFrame, list
 
     spec = targets.get("peru_gdp")
     (mm, quarterly, panel), make_cond, nowcast_lookup = _panel(spec)
-    base = pd.Period(quarterly[spec.target].dropna().index.max(), freq="Q")
-    grid = [base + h for h in range(1, H + 1)]
     today = resolve_as_of(ctx)                 # the run's canonical as-of date
+    # the base quarter is set by the RELEASE RULE at as-of, never by whatever
+    # the final snapshot happens to contain (a historical replay would
+    # otherwise anchor on a print that was not out yet)
+    base = released_last(quarterly[spec.target], spec.target_delay_days, today)
+    grid = [base + h for h in range(1, H + 1)]
     blocks = blocks or {}
 
     # Satellite inputs come from THIS run, or from ONE validated prior bundle,
@@ -118,7 +134,7 @@ def build(blocks: dict | None = None, ctx=None, **_) -> tuple[pd.DataFrame, list
     tdi_path, tdi_mask = released_first(grid, tdi_rel, tot["centre"], "g_tdi")
     ip_path, ip_mask = released_first(grid, ip_rel, ip_fc, "ip_cum_yoy")
     paths = {"us_gdp_yoy_m": us_path, "g_tdi": tdi_path, "ip_cum_yoy": ip_path,
-             "exp_eco3m": [float(mm["exp_eco3m"].dropna().iloc[-1])] * H}
+             "exp_eco3m": [_released_expectations(mm["exp_eco3m"], today)] * H}
     masks = {"us_gdp_yoy_m": us_mask, "g_tdi": tdi_mask, "ip_cum_yoy": ip_mask}
 
     calib = {}
@@ -138,7 +154,11 @@ def build(blocks: dict | None = None, ctx=None, **_) -> tuple[pd.DataFrame, list
     from pipeline.lib.nowcast_artifact import load_official
 
     cur = base + 1
-    official = load_official(expected_as_of=today)
+    if official_path is None:
+        raise ValueError(
+            "official_path is required: pass the current run's "
+            "peru_nowcast_official.csv (the fan never reads a global surface)")
+    official = load_official(expected_as_of=today, path=official_path)
     if str(official["quarter"]) != str(cur):
         raise ValueError(f"official nowcast is for {official['quarter']} but the "
                          f"fan's first node is {cur}; refresh the nowcast stage")
@@ -230,7 +250,7 @@ def build(blocks: dict | None = None, ctx=None, **_) -> tuple[pd.DataFrame, list
                         f"{bundle_meta['run_id']} (as of {bundle_meta['as_of']})")
     else:
         lines_prefix = None
-    out = write(df, REPO / "products/peru_gdp_fan.csv", stamp)
+    out = write(df, _dest(out_dir, "peru_gdp_fan.csv"), stamp)
     lines = [f"- **Peru GDP**: " + ", ".join(f"{q} {v:.1f}%" for q, v in
                                              zip(df.quarter.head(4), df["mode"].head(4))),
              f"  - information state: {dtp:+d} days to publication, index {info_idx:.2f} "

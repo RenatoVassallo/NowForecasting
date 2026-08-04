@@ -25,17 +25,56 @@ import pandas as pd
 REPO = Path(__file__).resolve().parents[2]
 
 
+def dirty_inventory(repo_root: Path = REPO) -> dict[str, str]:
+    """Relative path -> content sha256 for every deviation from HEAD.
+
+    Covers staged and unstaged changes to tracked files AND untracked
+    non-ignored files (``git status --porcelain -uall`` respects .gitignore),
+    so a new production module cannot change silently. Deleted files map to
+    the literal ``"deleted"``. Recorded in the run manifest so two differing
+    code fingerprints can be diagnosed file by file. A hash DETECTS
+    difference; it does not reconstruct an uncommitted tree, so a clean
+    commit remains the preferred operator state for an external release.
+    """
+    out = subprocess.run(["git", "status", "--porcelain", "-uall"],
+                         cwd=repo_root, capture_output=True, text=True,
+                         timeout=30, check=True).stdout
+    inv: dict[str, str] = {}
+    for line in out.splitlines():
+        if len(line) < 4:
+            continue
+        path = line[3:]
+        if " -> " in path:                       # rename: hash the new side
+            path = path.split(" -> ", 1)[1]
+        if path.startswith('"') and path.endswith('"'):
+            path = path[1:-1]
+        p = Path(repo_root) / path
+        inv[path] = (hashlib.sha256(p.read_bytes()).hexdigest()
+                     if p.is_file() else "deleted")
+    return dict(sorted(inv.items()))
+
+
 def _code_version(repo_root: Path = REPO) -> str:
-    """Short commit id, plus a digest of the uncommitted diff when dirty."""
+    """Short commit id, plus a digest over EVERY working-tree deviation.
+
+    The digest is a sha256 over the sorted (path, content-sha) inventory of
+    staged, unstaged and untracked non-ignored files, so untracked production
+    modules are part of the code identity (the old ``git diff HEAD`` digest
+    was blind to them).
+    """
     try:
         head = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
                               cwd=repo_root, capture_output=True, text=True,
                               timeout=10, check=True).stdout.strip()
-        diff = subprocess.run(["git", "diff", "HEAD"], cwd=repo_root,
-                              capture_output=True, text=True, timeout=30,
-                              check=True).stdout
-        if diff:
-            head += "+dirty." + hashlib.sha256(diff.encode()).hexdigest()[:8]
+        inv = dirty_inventory(repo_root)
+        if inv:
+            h = hashlib.sha256()
+            for path, sha in inv.items():        # already sorted: deterministic
+                h.update(path.encode())
+                h.update(b"\0")
+                h.update(sha.encode())
+                h.update(b"\n")
+            head += "+dirty." + h.hexdigest()[:8]
         return head
     except Exception:
         return "unknown"

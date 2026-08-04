@@ -20,6 +20,8 @@ def test_main_lifecycle_smoke(tmp_path, monkeypatch):
     monkeypatch.setattr(params, "RUNS_DIR", tmp_path)
     monkeypatch.setattr(params, "STAGES", {k: False for k in params.STAGES})
     monkeypatch.setattr(params, "UPDATE_LATEST_SYMLINK", True)
+    # lifecycle smoke only: an all-off run has no publishable surface
+    monkeypatch.setattr(params, "PUBLISH_PRODUCTS", False)
 
     from pipeline.main import main
 
@@ -46,8 +48,10 @@ def test_failed_run_is_quarantined(tmp_path, monkeypatch):
     import pipeline.lib.preflight as pf
 
     monkeypatch.setattr(params, "RUNS_DIR", tmp_path)
+    # a VALID selection (nowcast has no dependencies) whose preflight fails:
+    # the quarantine path, not the config-validation path
     monkeypatch.setattr(params, "STAGES",
-                        {k: False for k in params.STAGES} | {"report": True})
+                        {k: False for k in params.STAGES} | {"nowcast": True})
     monkeypatch.setattr(params, "UPDATE_LATEST_SYMLINK", True)
     monkeypatch.setattr(pf, "run_preflight",
                         lambda store, params: (_ for _ in ()).throw(

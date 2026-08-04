@@ -38,14 +38,13 @@ def _sha(path: Path) -> str:
 
 
 def calibration_inputs() -> dict:
-    """sha256 of every frozen calibration artifact production can read."""
-    out: dict = {}
-    chain = REPO / "output" / "backtests" / "exact_chain.parquet"
-    out["output/backtests/exact_chain.parquet"] = (
-        _sha(chain) if chain.exists() else "absent")
+    """sha256 of every frozen calibration artifact production can read.
+
+    Production consumes calibration data ONLY through the frozen assets
+    (including the exact-chain errors); nothing under output/ is probed.
+    """
     try:
         from pipeline.lib.calibration_assets import manifest_hashes
-        out.update(manifest_hashes())
+        return dict(manifest_hashes())
     except Exception as exc:
-        out["calibration_assets"] = f"unavailable ({type(exc).__name__})"
-    return out
+        return {"calibration_assets": f"unavailable ({type(exc).__name__})"}

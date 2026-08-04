@@ -24,29 +24,40 @@ from scipy import stats
 from pipeline.lib import style as S
 
 REPO = Path(__file__).resolve().parents[2]
-FIGDIR = REPO / "products" / "figures"
-_CTX_CACHE: dict = {}
 
 
 # --------------------------------------------------------------------------- #
 # context
 # --------------------------------------------------------------------------- #
 def load_context(as_of=None, store=None) -> dict:
+    """Figure inputs, ALL from the current run: the satellite paths this run's
+    chain resolved (run-local or one validated prior bundle), this run's fan,
+    and this run's official nowcast artifacts. No global surface is read, and
+    nothing is cached across runs (two runs in one process stay independent)."""
     from pipeline.lib.context import resolve_as_of
 
     as_of = resolve_as_of(None) if as_of is None else __import__("pandas").Timestamp(as_of).normalize()
-    if _CTX_CACHE:
-        return _CTX_CACHE
+    if store is None:
+        raise RuntimeError(
+            "fanchart context requires the run store: figures consume this "
+            "run's artifacts, never a global surface")
     import targets
     from targets import china as cn
     from targets import commodities as cmd
 
+    root = Path(store.root)
+    blocks = {str(k): Path(v) for k, v in (getattr(store, "blocks", {}) or {}).items()}
+    sources = {"usa": blocks.get("usa", root / "blocks" / "us_path_uncertainty.csv"),
+               "china": blocks.get("china", root / "blocks" / "china_path_uncertainty.csv"),
+               "tot": blocks.get("commodities", root / "blocks" / "tot_path_uncertainty.csv"),
+               "peru": root / "peru_gdp_fan.csv"}
     ctx: dict = {}
-    for name, fname in (("usa", "blocks/us_path_uncertainty.csv"),
-                        ("china", "blocks/china_path_uncertainty.csv"),
-                        ("tot", "blocks/tot_path_uncertainty.csv"),
-                        ("peru", "peru_gdp_fan.csv")):
-        d = pd.read_csv(REPO / "products" / fname)
+    for name, fpath in sources.items():
+        if not Path(fpath).exists():
+            raise FileNotFoundError(
+                f"fanchart input missing: {fpath}. Run the forecast stage in "
+                "this run (or pass a run that has it) before the figures.")
+        d = pd.read_csv(fpath)
         d["period"] = pd.PeriodIndex(d["quarter"], freq="Q")
         ctx[name] = d
 
@@ -64,7 +75,8 @@ def load_context(as_of=None, store=None) -> dict:
     ctx["tot_hist"] = t
 
     cm, _, _ = cn.load_panel()
-    ip = cm["ip_cum_yoy"].dropna()
+    from pipeline.blocks._common import fill_structural_january
+    ip = fill_structural_january(cm["ip_cum_yoy"]).dropna()   # merged Jan-Feb
     per = pd.PeriodIndex(ip.index, freq="Q")
     gq = ip.groupby(per)
     ctx["ip_hist"] = gq.mean().where(gq.count() >= 3).dropna()
@@ -105,7 +117,7 @@ def load_context(as_of=None, store=None) -> dict:
                                      min_quarters=6, collect_pools=True)
     ctx["rc_bands"], ctx["rc_pools"], ctx["rc_all"] = bands, pools, rc_all
 
-    sw = load_sweep(expected_as_of=as_of)
+    sw = load_sweep(expected_as_of=as_of, path=root / "peru_nowcast_sweep.csv")
     sweep = pd.DataFrame({
         "origin_date": pd.to_datetime(sw.origin_date),
         "y_hat": sw.y_hat.to_numpy(dtype=float),
@@ -115,7 +127,8 @@ def load_context(as_of=None, store=None) -> dict:
     sweep["bin"] = np.clip(np.digitize(sweep["info"], np.linspace(0, 1, 5)[1:-1]), 0, 3)
     ctx["sweep"] = sweep
 
-    official = load_official(expected_as_of=as_of)
+    official = load_official(expected_as_of=as_of,
+                             path=root / "peru_nowcast_official.csv")
     # tolerance: above the artifact's 4-decimal storage rounding, far below the
     # 0.1pp reporting resolution
     if abs(float(official["value"]) - float(sweep["y_hat"].iloc[-1])) > 1e-3:
@@ -124,7 +137,6 @@ def load_context(as_of=None, store=None) -> dict:
             f"({sweep['y_hat'].iloc[-1]:.4f} vs {official['value']:.4f}); "
             "the stages are not consuming one artifact")
     ctx["official"] = official
-    _CTX_CACHE.update(ctx)
     return ctx
 
 
@@ -381,23 +393,30 @@ FIGURES = {
 
 
 def run(store, params, panels=None) -> list[str]:
-    FIGDIR.mkdir(parents=True, exist_ok=True)
     rctx = getattr(store, "ctx", None)
     ctx = load_context(as_of=rctx.as_of if rctx is not None else None, store=store)
     store.fig_ctx = ctx
     lines = []
     dest = Path(store.root) / "figures"
     dest.mkdir(parents=True, exist_ok=True)
+    failures = []
     for name, builder in FIGURES.items():
         try:
             fig = builder(ctx)
             for ext, dpi in (("pdf", None), ("png", 170)):
-                for tgt in (FIGDIR / f"{name}.{ext}", dest / f"{name}.{ext}"):
-                    fig.savefig(tgt, dpi=dpi, bbox_inches="tight")
+                tgt = dest / f"{name}.{ext}"
+                fig.savefig(tgt, dpi=dpi, bbox_inches="tight")
+                if hasattr(store, "_track"):
+                    store._track(tgt, "figure")
             plt.close(fig)
             lines.append(f"- figure {name}: ok")
             print(f"  [fanchart] {name}")
         except Exception as exc:
-            lines.append(f"- figure {name}: FAILED ({type(exc).__name__}: {exc})")
+            failures.append(f"{name} ({type(exc).__name__}: {exc})")
             print(f"  [fanchart] {name} FAILED: {exc}")
+    if failures:
+        # a published report with silently missing figures is worse than a
+        # failed run: the stage fails, the run is quarantined, nothing publishes
+        raise RuntimeError("fanchart: figure generation failed for "
+                           + "; ".join(failures))
     return lines

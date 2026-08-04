@@ -42,6 +42,9 @@ def _validate(path: Path) -> str:
 def run(store, params, panels=None) -> list[str]:
     only = set(getattr(params, "CHAIN_BLOCKS", ()) or ORDER)
     lines, published = [], {}
+    blocks_dir = store.dir("blocks") if hasattr(store, "dir") \
+        else Path(store.root) / "blocks"
+    blocks_dir.mkdir(parents=True, exist_ok=True)
     for name in ORDER:
         if name not in only:
             lines.append(f"- **{name}**: skipped")
@@ -49,13 +52,17 @@ def run(store, params, panels=None) -> list[str]:
         builder, feeds = BLOCKS[name]
         t0 = time.time()
         try:
-            _df, block_lines, path = builder(ctx=getattr(store, "ctx", None))
+            # blocks write INSIDE the run: the staged directory is the only
+            # information surface until the run is promoted and published
+            _df, block_lines, path = builder(ctx=getattr(store, "ctx", None),
+                                             out_dir=blocks_dir)
             _validate(path)
-            published[name] = path
+            published[name] = Path(path)
             lines += block_lines
-            dest = Path(store.root) / "blocks"
-            dest.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(path, dest / path.name)
+            if hasattr(store, "_track"):
+                store._track(Path(path), "block")
+            if hasattr(store, "require"):
+                store.require(f"blocks/{Path(path).name}")
             print(f"  [chain] {name:12s} {time.time()-t0:6.0f}s  ok")
         except Exception as exc:
             lines.append(f"- **{name}**: FAILED ({type(exc).__name__}: {exc})")
@@ -65,9 +72,12 @@ def run(store, params, panels=None) -> list[str]:
     store.blocks = published
 
     from pipeline.lib import bundle as _bundle
-    dest = Path(store.root) / "blocks"
     if set(published) >= set(_bundle.REQUIRED_BLOCKS):
-        _bundle.write_bundle(dest, published, getattr(store, "ctx", None))
+        out = _bundle.write_bundle(blocks_dir, published, getattr(store, "ctx", None))
+        if out is not None and hasattr(store, "_track"):
+            store._track(out, "bundle")
+        if out is not None and hasattr(store, "require"):
+            store.require("blocks/bundle.json")
         lines.append("- chain bundle: complete and recorded (bundle.json)")
     else:
         missing = sorted(set(_bundle.REQUIRED_BLOCKS) - set(published))

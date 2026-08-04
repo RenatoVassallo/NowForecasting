@@ -52,7 +52,8 @@ def _tokens(ctx, as_of) -> dict:
             f"{node.get('information_index', float('nan')):.2f} - {state}. "
             "Conditioning: US from the SPF and the IMF WEO live round; China from the "
             "published China profile; terms of trade from the monthly commodity BVAR; "
-            "business expectations held at their last value.")
+            "business expectations held at their last released value. "
+            + calibration_disclosure())
 
     fanrows = "\n".join(
         f"        {r['quarter']} & {r['mode']:.1f} & "
@@ -138,22 +139,68 @@ def _tokens(ctx, as_of) -> dict:
     }
 
 
+def calibration_disclosure() -> str:
+    """The provisional-calibration qualification, ONE source for md and tex.
+
+    The prospective start comes from ``core.evaluation`` so the published
+    wording can never drift from the evaluation code.
+    """
+    from core.evaluation import EVALUATION_REGIME, PROSPECTIVE_START
+
+    return ("Fan calibration is provisional: horizon-specific coverage is "
+            "estimated from 9 to 18 pseudo-real-time observations on "
+            f"final-vintage data ({EVALUATION_REGIME}). The post-2023 "
+            "evaluation window has been inspected; prospective validation "
+            f"begins with the {PROSPECTIVE_START} GDP release.")
+
+
 def run(store, params, whatsnew: str, lines: list[str], timings: dict) -> None:
     from pipeline.lib.context import resolve_as_of
 
     as_of = resolve_as_of(getattr(store, "ctx", None))
-    ctx = getattr(store, "fig_ctx", None) or F.load_context(as_of=as_of)
+    # report-from-run mode reads the SOURCE run's artifacts; a normal run
+    # reads its own (fig_ctx is already set when the fanchart stage ran)
+    read_store = getattr(store, "report_source", None) or store
+    ctx = getattr(store, "fig_ctx", None) or F.load_context(as_of=as_of,
+                                                            store=read_store)
     root = Path(store.root)
-    figdir = root / "figures"
+    figdir = root / "figures"          # populated by the fanchart stage in-run
     figdir.mkdir(exist_ok=True)
-    for f in (REPO / "products" / "figures").glob("*.pdf"):
-        shutil.copy2(f, figdir / f.name)
 
     tex = TEMPLATE.read_text()
     for k, v in _tokens(ctx, as_of).items():
         tex = tex.replace(k, v)
     (root / "report.tex").write_text(tex)
 
+    compiled = _compile_pdf(root, require_pdf=getattr(params, "REPORT_PDF", True))
+
+    run_id = getattr(store, "run_id", root.name)
+    md = [f"# NowForecasting run {run_id}", ""] + lines + \
+         ["", "## Disclosures", "",
+          "Evaluation regime: pseudo real time on final-vintage data "
+          "(scalar release rules; not genuine real time).", "",
+          calibration_disclosure(), "",
+          "## What's new in the data", "", whatsnew or "-", "", "## Timings", ""] + \
+         [f"- {k}: {v:.0f}s" for k, v in timings.items()] + \
+         ["", "Full report: report.pdf" if compiled else "", ""]
+    (root / "report.md").write_text("\n".join(md))
+    if hasattr(store, "_track"):
+        store._track(root / "report.tex", "report")
+        store._track(root / "report.md", "report")
+        if compiled:
+            store._track(root / "report.pdf", "report")
+    if hasattr(store, "require"):
+        store.require("report.tex", "report.md")
+        if getattr(params, "REPORT_PDF", True):
+            store.require("report.pdf")
+
+
+def _compile_pdf(root: Path, *, require_pdf: bool) -> bool:
+    """Compile report.tex to PDF; PDF mode fails closed when it cannot.
+
+    ``require_pdf=False`` is the explicit TeX-only mode: the artifact contract
+    then contains report.tex and report.md, but no report.pdf.
+    """
     compiled = False
     for cmd in (["latexmk", "-pdf", "-silent", "-halt-on-error", "report.tex"],
                 ["tectonic", "report.tex"]):
@@ -163,20 +210,17 @@ def run(store, params, whatsnew: str, lines: list[str], timings: dict) -> None:
             subprocess.run(cmd, cwd=root, check=True, capture_output=True, timeout=300)
             if cmd[0] == "latexmk":
                 subprocess.run(["latexmk", "-c"], cwd=root, capture_output=True)
-            shutil.copy2(root / "report.pdf", REPO / "products" / "report.pdf")
             print(f"  [report] {root / 'report.pdf'} (via {cmd[0]})")
             compiled = True
             break
         except Exception as exc:
             out = (getattr(exc, "stdout", b"") or b"").decode(errors="ignore")
             print(f"  [report] {cmd[0]} failed; tail:\n{out[-600:]}")
+    if not compiled and require_pdf:
+        raise RuntimeError(
+            "report: PDF mode is selected (params.REPORT_PDF) but no report.pdf "
+            "was produced; install latexmk or tectonic, or set REPORT_PDF=False "
+            "for the explicit TeX-only contract")
     if not compiled:
-        print("  [report] no LaTeX engine found - report.tex is ready to compile.\n"
-              "           install one with: apt-get install -y latexmk "
-              "texlive-latex-recommended texlive-fonts-recommended")
-
-    run_id = getattr(store, "run_id", root.name)
-    md = [f"# NowForecasting run {run_id}", ""] + lines + \
-         ["", "## What's new in the data", "", whatsnew or "-", "", "## Timings", ""] + \
-         [f"- {k}: {v:.0f}s" for k, v in timings.items()] + ["", "Full report: report.pdf"]
-    (root / "report.md").write_text("\n".join(md))
+        print("  [report] TeX-only mode: report.tex written, no PDF required")
+    return compiled

@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from ._common import REPO, fan_frame, information_stamp, write
+from ._common import REPO, _dest, fan_frame, information_stamp, write
 
 SAMPLE_FROM = 2010           # WEO vintages start here; a 10y window is WIDER (tested)
 ORIGIN_DAY = 50              # the SPF for the current quarter is out by day ~50
@@ -25,6 +25,21 @@ def weo_at(weo: pd.Series, year: int) -> float:
 def _blend_weight(h: int) -> float:
     """SPF where it is decisively better, handing over to the WEO as it runs out."""
     return {1: 0.0, 2: 0.25, 3: 0.5, 4: 0.5, 5: 0.5}.get(h, 1.0)
+
+
+def _released_spf(spf: pd.DataFrame, as_of) -> pd.DataFrame:
+    """Surveys RELEASED at ``as_of``: the survey sits on its quarter's first
+    month and publishes ~45 days later (targets/usa.SPF_DELAY_DAYS)."""
+    from targets.usa import SPF_DELAY_DAYS
+
+    first_month_end = (spf.index.to_timestamp(how="start")
+                       + pd.offsets.MonthEnd(0))
+    ok = first_month_end + pd.Timedelta(days=SPF_DELAY_DAYS) \
+        <= pd.Timestamp(as_of).normalize()
+    out = spf[ok]
+    if out.empty:
+        raise RuntimeError(f"no released SPF survey at {pd.Timestamp(as_of).date()}")
+    return out
 
 
 def _spf_yoy(spf, saar, survey_q, hmax=8) -> dict:
@@ -52,7 +67,7 @@ def _spf_yoy(spf, saar, survey_q, hmax=8) -> dict:
     return out
 
 
-def build(ctx=None, **_) -> tuple[pd.DataFrame, list[str]]:
+def build(ctx=None, out_dir=None, **_) -> tuple[pd.DataFrame, list[str]]:
     from forecast.fan_mc import fit_tpn_mle
     from pipeline.lib.context import resolve_as_of
     from sources import imf
@@ -98,10 +113,13 @@ def build(ctx=None, **_) -> tuple[pd.DataFrame, list[str]]:
         f["mode_shift"] = 0.0                     # the mode is the central projection
         fits[h] = f
 
-    # the run's live path
+    # the run's live path: the newest RELEASED survey and quarter at as_of
+    # (the snapshot may already hold later prints; the release rules decide)
     weo_now, rnd = imf.path("USA", as_of)
-    sp_now = _spf_yoy(spf, saar, spf.index.max())
-    last_q = realised.index.max()
+    spf_rel = _released_spf(spf, as_of)
+    sp_now = _spf_yoy(spf_rel, saar, spf_rel.index.max())
+    from ._common import released_last
+    last_q = released_last(realised, usa.DELAYS["us_gdp_yoy_m"], as_of)
     grid = [last_q + k for k in range(1, 9)]
     centre, src = [], []
     for k, tgt in enumerate(grid, start=1):
@@ -117,7 +135,7 @@ def build(ctx=None, **_) -> tuple[pd.DataFrame, list[str]]:
     df = fan_frame(grid, centre, [fits.get(h) for h in range(1, 9)], src)
     stamp = information_stamp(usa.SPEC, grid[0], as_of=as_of)
     stamp["weo_round"] = rnd
-    out = write(df, REPO / "products/blocks/us_path_uncertainty.csv", stamp)
+    out = write(df, _dest(out_dir, "us_path_uncertainty.csv"), stamp)
     lines = [f"- **US**: {centre[0]:.2f}% next quarter, {centre[-1]:.2f}% at h=8 "
              f"(WEO {rnd}); 90% band {df.width90.iloc[0]:.2f} to {df.width90.iloc[-1]:.2f}pp"]
     return df, lines, out

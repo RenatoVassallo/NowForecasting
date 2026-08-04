@@ -67,7 +67,7 @@ class RunStore:
             else self.final_root
         self.root.mkdir(parents=True, exist_ok=True)
         self._manifest: dict[str, Any] = {"run_id": self.run_id, "files": [],
-                                          "stages": {}}
+                                          "stages": {}, "required": []}
         if ctx is not None:
             self._manifest.update(as_of=str(ctx.as_of.date()),
                                   code_version=ctx.code_version)
@@ -117,12 +117,26 @@ class RunStore:
     def set_meta(self, **kw):
         self._manifest.update(kw)
 
-    def write_manifest(self, strict: bool = True):
-        """Hash and validate every tracked artifact, then write manifest.json.
+    def require(self, *relpaths: str):
+        """Declare artifacts the run MUST produce (checked by strict manifest)."""
+        for r in relpaths:
+            if r not in self._manifest["required"]:
+                self._manifest["required"].append(str(r))
 
-        ``strict=True`` (the success path) fails closed when a tracked artifact
-        is missing or empty; the failure path uses ``strict=False`` so a broken
-        run can still record what it managed to produce.
+    # files the lifecycle itself owns, plus LaTeX build residue: never treated
+    # as untracked final artifacts
+    _AUX = {"manifest.json", "_SUCCESS", "_FAILED"}
+    _AUX_SUFFIX = (".aux", ".log", ".out", ".fls", ".fdb_latexmk", ".synctex.gz",
+                   ".toc", ".nav", ".snm")
+
+    def write_manifest(self, strict: bool = True):
+        """Hash and validate the run tree against the contract, then write it.
+
+        Strict mode (the success path) fails closed on: a tracked artifact
+        missing or empty, a REQUIRED artifact missing, duplicate manifest
+        paths, or an UNTRACKED file in the run tree (everything a consumer
+        could read must be declared and hashed). The failure path uses
+        ``strict=False`` so a broken run can still record what it produced.
         """
         from pipeline.lib.bundle import registry_sha
         from pipeline.lib.provenance import calibration_inputs, declared_seeds
@@ -132,8 +146,22 @@ class RunStore:
         man["registry_sha"] = registry_sha()
         man.setdefault("seeds", declared_seeds())
         man.setdefault("calibration_inputs", calibration_inputs())
+        try:
+            # per-file inventory behind the +dirty digest: lets two differing
+            # code fingerprints be diagnosed path by path
+            from pipeline.lib.context import dirty_inventory
+            man["code_inventory"] = dirty_inventory()
+        except Exception:
+            man["code_inventory"] = "unavailable"
 
         problems: list[str] = []
+        paths = [e["path"] for e in man["files"]]
+        dups = sorted({p for p in paths if paths.count(p) > 1})
+        if dups:
+            problems.append("duplicate manifest paths: " + ", ".join(dups))
+            seen: set = set()
+            man["files"] = [e for e in man["files"]
+                            if not (e["path"] in seen or seen.add(e["path"]))]
         for entry in man["files"]:
             p = self.root / entry["path"]
             if p.exists() and p.stat().st_size > 0:
@@ -141,11 +169,26 @@ class RunStore:
                 entry["bytes"] = p.stat().st_size
             else:
                 entry["sha256"] = "missing"
-                problems.append(entry["path"])
+                problems.append(f"tracked artifact missing or empty: {entry['path']}")
+        tracked = {e["path"] for e in man["files"]}
+        for req in man["required"]:
+            if req not in tracked or not (self.root / req).exists() \
+                    or (self.root / req).stat().st_size == 0:
+                problems.append(f"required artifact not produced: {req}")
+        untracked = []
+        for p in self.root.rglob("*"):
+            if not p.is_file():
+                continue
+            rel = str(p.relative_to(self.root))
+            if rel in tracked or p.name in self._AUX \
+                    or p.name.endswith(self._AUX_SUFFIX):
+                continue
+            untracked.append(rel)
+        if untracked:
+            problems.append("untracked final artifacts: "
+                            + ", ".join(sorted(untracked)[:20]))
         if strict and problems:
-            raise RuntimeError(
-                "manifest validation: tracked artifacts missing or empty: "
-                + ", ".join(problems))
+            raise RuntimeError("manifest validation: " + "; ".join(problems))
         (self.root / "manifest.json").write_text(
             json.dumps(man, indent=2, default=str))
 

@@ -83,7 +83,12 @@ def test_scoreboard_carries_regime_and_samples():
     assert sb.set_index("model").loc["A", "finite_share"] == pytest.approx(2 / 3, abs=1e-3)
 
 
-def test_holdout_split_is_frozen_forward():
-    assert E.sample_label("2022-12-01") == "selection"
-    assert E.sample_label("2023-03-01") == "holdout"
+def test_sample_labels_at_every_boundary():
+    assert E.sample_label("2022-12-01") == "selection"                 # 2022Q4
+    assert E.sample_label("2023-03-01") == "inspected_post_selection"  # 2023Q1
+    assert E.sample_label("2026-03-01") == "inspected_post_selection"  # 2026Q1
+    assert E.sample_label("2026-06-01") == "prospective"               # 2026Q2
+    assert E.sample_label("2030-03-01") == "prospective"   # future stays out
+    # the historical boundary constant survives, as a boundary only
+    assert E.HOLDOUT_START == pd.Period("2023Q1", freq="Q")
     assert E.HOLDOUT_START == pd.Period("2023Q1", freq="Q")

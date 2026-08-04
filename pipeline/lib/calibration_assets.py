@@ -28,6 +28,7 @@ ASSETS = {
     "china_ladder_full": "china_ladder_full.parquet",
     "china_horizon_2012floor": "china_horizon_2012floor.parquet",
     "china_tilt_weo": "china_tilt_weo.parquet",
+    "exact_chain": "exact_chain.parquet",
 }
 
 
@@ -68,6 +69,35 @@ def asset_path(name: str, root: Path | None = None, verify: bool = True) -> Path
             "calibration/MANIFEST.json in the same commit); otherwise restore "
             "the frozen file.")
     return path
+
+
+def freeze_asset(name: str, src: Path, *, producer: str,
+                 extra: dict | None = None, root: Path | None = None) -> dict:
+    """Deliberately (re)freeze an asset: copy the file, rewrite its manifest entry.
+
+    This is the ONLY sanctioned way to change a frozen asset. The existing
+    ``role`` is preserved; ``producer`` and any ``extra`` provenance fields
+    (panel rule, generation date, code version, seeds, windows) are recorded so
+    the manifest states exactly how the frozen vintage was made.
+    """
+    if name not in ASSETS:
+        raise ValueError(f"unknown calibration asset {name!r}")
+    root = Path(root) if root is not None else ROOT
+    fname = ASSETS[name]
+    data = Path(src).read_bytes()
+    if not data:
+        raise RuntimeError(f"refusing to freeze empty file {src}")
+    (root / fname).write_bytes(data)
+    mf = root / "MANIFEST.json"
+    man = json.loads(mf.read_text())
+    entry = man.setdefault("assets", {}).get(fname, {})
+    entry.update({"sha256": hashlib.sha256(data).hexdigest(),
+                  "bytes": len(data),
+                  "frozen_from": str(Path(src)),
+                  "producer": producer, **(extra or {})})
+    man["assets"][fname] = entry
+    mf.write_text(json.dumps(man, indent=2, default=str) + "\n")
+    return entry
 
 
 def manifest_hashes(root: Path | None = None) -> dict:
