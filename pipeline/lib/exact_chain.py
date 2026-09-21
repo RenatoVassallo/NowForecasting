@@ -175,7 +175,7 @@ def released_by_rule(series: pd.Series, delay_days: int, as_of,
                      freq: str = "Q") -> pd.Series:
     s = series.dropna()
     idx = pd.PeriodIndex(s.index, freq=freq)
-    rel = idx.to_timestamp(how="end") + pd.Timedelta(days=int(delay_days))
+    rel = idx.to_timestamp(how="end").normalize() + pd.Timedelta(days=int(delay_days))
     return pd.Series(s.to_numpy(), index=idx)[rel <= pd.Timestamp(as_of)]
 
 
@@ -299,8 +299,49 @@ def us_path_at(ctx: ChainContext, t: pd.Timestamp, grid):
     return vals, rnd, spf_release
 
 
+def _forecast_variant_specs(base_paths: dict, *, builder=None,
+                            context: dict | None = None) -> dict:
+    """Exact-rule S1 plus optional notebook-only research variants.
+
+    Production calls ``run_origin`` without a builder and therefore receives
+    exactly the historical S1-chain specification. A research notebook may add
+    models that share the already reconstructed origin, satellite paths, and
+    information set. The baseline name is reserved so an experiment cannot
+    silently replace the rule whose frozen chain calibrates publication.
+    """
+    import copy
+
+    specs = {"S1-chain": {"system": list(SYSTEM),
+                          "paths": copy.deepcopy(base_paths)}}
+    if builder is None:
+        return specs
+    extra = builder(copy.deepcopy(base_paths), dict(context or {}))
+    if not isinstance(extra, dict):
+        raise TypeError("variant builder must return a mapping")
+    if "S1-chain" in extra:
+        raise ValueError("S1-chain is reserved for the exact production rule")
+    for name, cfg in extra.items():
+        if not isinstance(cfg, dict) or not cfg.get("system") or "paths" not in cfg:
+            raise ValueError(
+                f"research variant {name!r} must declare non-empty system and paths")
+        specs[str(name)] = {"system": list(cfg["system"]),
+                            "paths": copy.deepcopy(cfg["paths"])}
+    return specs
+
+
+def _variant_prediction_row(pivot: pd.DataFrame, variants, *, h: int) -> dict:
+    """Return every requested research prediction available at one horizon."""
+    if h not in pivot.index:
+        return {name: np.nan for name in variants}
+    return {
+        name: (float(pivot.loc[h, name]) if name in pivot.columns else np.nan)
+        for name in variants
+    }
+
+
 def run_origin(ctx: ChainContext, base: pd.Period, *, tot_chains=(7, 17),
-               tot_draws=3000, s1_draws=1500) -> tuple[list[dict], dict]:
+               tot_draws=3000, s1_draws=1500,
+               variant_builder=None) -> tuple[list[dict], dict]:
     import copy as _copy
 
     import forecast
@@ -363,6 +404,11 @@ def run_origin(ctx: ChainContext, base: pd.Period, *, tot_chains=(7, 17),
     exp_rel = exp_rel[ends_e + pd.Timedelta(days=5) <= t]
     paths = {"us_gdp_yoy_m": us_path, "g_tdi": tdi_path, "ip_cum_yoy": ip_path,
              "exp_eco3m": [float(exp_rel.iloc[-1])] * H}
+    variants = _forecast_variant_specs(
+        paths, builder=variant_builder,
+        context={"base": base, "origin": t, "grid": list(grid),
+                 "exp_last": float(exp_rel.iloc[-1]),
+                 "exp_history": exp_rel.copy()})
 
     checks = no_lookahead_checks(
         t, ladder_max_origin=nc_origin, spf_release=spf_release, weo_round=weo_rnd,
@@ -388,13 +434,14 @@ def run_origin(ctx: ChainContext, base: pd.Period, *, tot_chains=(7, 17),
         return f
 
     models = {
-        "S1-chain": ctx.make_cond(SYSTEM, nowcast_fn=make_fn(), custom=paths,
-                                  name="S1-chain", draws=s1_draws),
-        "BVAR-unconditional": BVARNowcaster(
+        name: ctx.make_cond(cfg["system"], nowcast_fn=make_fn(),
+                            custom=cfg["paths"], name=name, draws=s1_draws)
+        for name, cfg in variants.items()
+    }
+    models["BVAR-unconditional"] = BVARNowcaster(
             variables=["ip_cum_yoy", "g_tdi", "exp_eco3m", "g_invq_m"],
             lags=2, post_draws=800, sample_start="2003-01-01", min_train=28,
-            _name="BVAR-unconditional"),
-    }
+            _name="BVAR-unconditional")
     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
         lv = forecast.live_forecast(panel, ctx.spec, models,
                                     horizons=tuple(range(1, H + 1)), today=t)
@@ -413,14 +460,14 @@ def run_origin(ctx: ChainContext, base: pd.Period, *, tot_chains=(7, 17),
     rows = []
     for h in range(1, H + 1):
         ref = base + h
-        preds = {
-            "S1-chain": float(piv.loc[h, "S1-chain"]) if h in piv.index else np.nan,
+        preds = _variant_prediction_row(piv, variants, h=h)
+        preds.update({
             "BVAR-unconditional": float(piv.loc[h, "BVAR-unconditional"])
             if h in piv.index and "BVAR-unconditional" in piv.columns else np.nan,
             "RW": l1,
             "AR(2)": ar_path[h - 1],
             "Nowcast-node" if h == 1 else "_skip": nc_hat if h == 1 else np.nan,
-        }
+        })
         preds.pop("_skip", None)
         member_vals = [preds[m] for m in BENCH_MEMBERS]
         preds["Mean(4)"] = float(np.nanmean(member_vals))

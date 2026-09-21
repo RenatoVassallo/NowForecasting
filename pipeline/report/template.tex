@@ -34,35 +34,32 @@
 \begin{document}
 
 % ---- cover --------------------------------------------------------------------
+% headline numbers share one tabular row, so their baselines are locked by
+% construction; labels and sub-details live in their own aligned rows
+\newcommand{\bignum}[2]{{\rmfamily\color{#1}\fontsize{27}{29}\selectfont #2\%}}
+\newcommand{\numlabel}[1]{{\footnotesize\color{ink}#1}}
+\newcommand{\numsub}[1]{{\scriptsize\color{muted}#1}}
+
 \begin{frame}[plain]
-  \vspace{1.1cm}
+  \vspace{0.9cm}
   {\rmfamily\Huge Peru Macro Outlook}\\[0.25em]
   {\color{muted} Weekly nowcast and conditional projections \;\textbar\; <<DATE>>}\\[0.4em]
-  {\color{accent}\rule{0.86\textwidth}{1.6pt}}\\[1.0em]
-  \begin{columns}[T]
-    \begin{column}{0.25\textwidth}
-      {\rmfamily\color{accent}\fontsize{26}{28}\selectfont <<NOWCAST>>\%}\\[0.2em]
-      GDP nowcast, <<QUARTER>>\\[0.1em]
-      {\scriptsize\color{muted}90\% band <<NOWCAST90>>}
-    \end{column}
-    \begin{column}{0.25\textwidth}
-      {\rmfamily\color{accent}\fontsize{26}{28}\selectfont <<ANNUAL1>>\%}\\[0.2em]
-      <<ANNUAL1Y>> annual average\\[0.1em]
-      {\scriptsize\color{muted}IMF WEO: <<WEO1>>\%}
-    \end{column}
-    \begin{column}{0.25\textwidth}
-      {\rmfamily\color{accent}\fontsize{26}{28}\selectfont <<ANNUAL2>>\%}\\[0.2em]
-      <<ANNUAL2Y>> annual average\\[0.1em]
-      {\scriptsize\color{muted}IMF WEO: <<WEO2>>\%}
-    \end{column}
-    \begin{column}{0.25\textwidth}
-      {\rmfamily\color{olive}\fontsize{26}{28}\selectfont <<TOTNOW>>\%}\\[0.2em]
-      terms of trade, current quarter\\[0.1em]
-      {\scriptsize\color{muted}<<TOTSRC>>}
-    \end{column}
-  \end{columns}
-  \vspace{0.9em}
-  {\small\color{muted}<<INFOSTATE>>}
+  {\color{accent}\rule{0.86\textwidth}{1.6pt}}\\[1.15em]
+  {\renewcommand{\arraystretch}{1.0}%
+  \begin{tabular}{@{}p{0.235\textwidth}@{}p{0.235\textwidth}@{}p{0.235\textwidth}@{}p{0.235\textwidth}@{}}
+    \bignum{accent}{<<NOWCAST>>} & \bignum{accent}{<<ANNUAL1>>} &
+    \bignum{accent}{<<ANNUAL2>>} & \bignum{olive}{<<TOTNOW>>} \\[0.5em]
+    \numlabel{GDP nowcast, <<QUARTER>>} & \numlabel{<<ANNUAL1Y>> average} &
+    \numlabel{<<ANNUAL2Y>> average} & \numlabel{Terms of trade, <<TOTQ>>} \\[0.15em]
+    \numsub{90\% band <<NOWCAST90>>} & \numsub{IMF WEO <<WEO1>>\%} &
+    \numsub{IMF WEO <<WEO2>>\%} & \numsub{<<TOTSRC>>} \\
+  \end{tabular}}\\[1.3em]
+  {\small\begin{itemize}\setlength{\itemsep}{0.25em}
+<<CLIENTLINES>>
+  \end{itemize}}
+  \vspace{0.4em}
+
+  {\scriptsize\color{faint}Methodology, data status and technical notes: appendix.}
 \end{frame}
 
 % ---- flagship: the release cycle ----------------------------------------------
@@ -72,13 +69,13 @@
 \end{frame}
 
 % ---- china + terms of trade ---------------------------------------------------
-\begin{frame}{The external anchors}
+\begin{frame}{External anchors}
   \centering
   \includegraphics[width=0.99\textwidth]{figures/china_tot.pdf}
 \end{frame}
 
 % ---- conditioning variables ---------------------------------------------------
-\begin{frame}{What the projection is conditioned on}
+\begin{frame}{Conditioning assumptions}
   \centering
   \includegraphics[width=0.88\textwidth]{figures/conditioning.pdf}\\
   {\scriptsize\color{muted}Dashed lines: assumed paths (deterministic in the central
@@ -86,7 +83,7 @@
 \end{frame}
 
 % ---- the fan -------------------------------------------------------------------
-\begin{frame}{GDP Growth Forecast (YoY growth rate)}
+\begin{frame}{GDP growth outlook}
   \begin{columns}[T]
     \begin{column}{0.74\textwidth}
       \includegraphics[width=\textwidth]{figures/fan_main.pdf}
@@ -117,6 +114,12 @@
 \begin{frame}[plain]
   \centering
   \includegraphics[width=0.98\textwidth]{figures/cycle_grid.pdf}
+\end{frame}
+
+\begin{frame}{Data frontier}
+  \begin{center}
+  \includegraphics[width=0.97\textwidth,height=0.82\textheight,keepaspectratio]{figures/data_frontier.pdf}
+  \end{center}
 \end{frame}
 
 \begin{frame}{Conditioning paths}
@@ -162,6 +165,15 @@
       data), excluding 2020--21 at both the launch and the reference end.}
     \end{column}
   \end{columns}
+\end{frame}
+
+\begin{frame}{Technical notes}
+  % \small as a SWITCH: wrapping the itemize in a brace group inside a
+  % titled frame silently swallows the whole list under this theme
+  \small
+  \begin{itemize}\setlength{\itemsep}{0.5em}
+<<TECHNOTES>>
+  \end{itemize}
 \end{frame}
 
 \end{document}

@@ -140,10 +140,31 @@ def information_stamp(target_spec, current_q, panel=None, as_of=None) -> dict:
     from pipeline.lib.context import resolve_as_of
 
     as_of = resolve_as_of(None) if as_of is None else pd.Timestamp(as_of).normalize()
-    pub = current_q.to_timestamp(how="end") + pd.Timedelta(days=target_spec.target_delay_days)
+    pub = expected_publication(current_q, target_spec.target_delay_days)
     days = int((as_of - pub).days)
     return {"as_of": str(as_of.date()), "current_quarter": str(current_q),
             "days_to_publication": days}
+
+
+def expected_publication(q, delay_days: int) -> pd.Timestamp:
+    """Canonical expected publication date: NORMALIZED period end + delay.
+
+    One convention everywhere (the MIDAS rule): quarter stamps are the first
+    day of the end month, the quarter end is that month's last day at
+    MIDNIGHT, and the release lands ``delay_days`` later. Never add a delay
+    to a 23:59:59.999999999 period end; the ``.days`` flooring then disagrees
+    by one day across surfaces (the -16 vs -17 defect).
+    """
+    if isinstance(q, pd.Period):
+        end = q.to_timestamp(how="end").normalize()
+    else:
+        end = (pd.Timestamp(q) + pd.offsets.MonthEnd(1)).normalize()
+    return end + pd.Timedelta(days=int(delay_days))
+
+
+def expected_publication_index(per: pd.PeriodIndex, delay_days: int) -> pd.DatetimeIndex:
+    """Vectorized :func:`expected_publication` for a PeriodIndex."""
+    return per.to_timestamp(how="end").normalize() + pd.Timedelta(days=int(delay_days))
 
 
 def released_last(series_q: pd.Series, delay_days: int, as_of) -> pd.Period:
@@ -154,7 +175,7 @@ def released_last(series_q: pd.Series, delay_days: int, as_of) -> pd.Period:
     """
     s = series_q.dropna()
     per = pd.PeriodIndex(s.index, freq="Q")
-    rel = per.to_timestamp(how="end") + pd.Timedelta(days=int(delay_days))
+    rel = expected_publication_index(per, delay_days)
     ok = per[rel <= pd.Timestamp(as_of).normalize()]
     if len(ok) == 0:
         raise RuntimeError(f"no released observation at {pd.Timestamp(as_of).date()} "

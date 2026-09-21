@@ -1,0 +1,133 @@
+series_id,provider,provider_code,country,frequency,group,label,unit,publication_delay_days,need_sa,transform,active,notes,concept
+cem,bcrp,PD37967GM,PE,M,High-frequency activity,Domestic cement consumption,YoY %,51.0,0.0,none,1.0,,
+circ,bcrp,PN00495MM,PE,M,Credit and liquidity,Circulating currency,Millions of Soles,40.0,0.0,mom,1.0,,
+credcons,bcrp,PN00533MM,PE,M,Credit and liquidity,Consumption credit,Millions of Soles,22.0,0.0,mom,0.0,,
+credhip,bcrp,PN00534MM,PE,M,Credit and liquidity,Mortgage credit,Millions of Soles,22.0,0.0,mom,0.0,,
+credme,bcrp,PN00499MM,PE,M,Credit and liquidity,Private credit in foreign currency,Millions of Dollars,22.0,0.0,mom,1.0,,
+credmn,bcrp,PN00496MM,PE,M,Credit and liquidity,Private credit in local currency,Millions of Soles,22.0,0.0,mom,1.0,,
+elec,bcrp,PD37966AM,PE,M,High-frequency activity,Electricity production,GWH,51.0,1.0,mom_ann,1.0,,
+embig_lac,bcrp,PN01137XM,PE,M,Prices and financial conditions,EMBIG Latin America,Basis points,3.0,0.0,none,1.0,,
+embig_per,bcrp,PN01129XM,PE,M,Prices and financial conditions,EMBIG Peru,Basis points,3.0,0.0,none,1.0,,
+emiprim,bcrp,PN00489MM,PE,M,Credit and liquidity,Primary issuance,Millions of Soles,10.0,0.0,mom_ann,1.0,,
+exp_act,bcrp,PD38044AM,PE,M,Business surveys,Current business conditions,Diffusion index,7.0,0.0,none,1.0,Standardize,
+exp_eco12m,bcrp,PD37981AM,PE,M,Business surveys,"Economy expectations, 12 months",Diffusion index,7.0,0.0,none,1.0,Standardize,
+exp_eco3m,bcrp,PD38045AM,PE,M,Business surveys,"Economy expectations, 3 months",Diffusion index,7.0,0.0,none,1.0,Standardize,
+exp_nt,bcrp,PN38716BM,PE,M,External trade,Non-traditional exports,USD millions,40.0,1.0,mom_ann,1.0,Consider seasonal/calendar effects.,
+exp_ord,bcrp,PD38043AM,PE,M,Business surveys,Purchase orders index,Diffusion index,7.0,0.0,none,1.0,Standardize,
+exp_pbi12m,bcrp,PD38048AM,PE,M,Business surveys,"GDP expectations, 12 months",YoY %,7.0,0.0,none,1.0,Confirm whether the published series is a level expectation or an index.,
+exp_sec12m,bcrp,PD39752AM,PE,M,Business surveys,"Sector expectations, 12 months",Diffusion index,7.0,0.0,none,1.0,Standardize,
+exp_sec3m,bcrp,PD38046AM,PE,M,Business surveys,"Sector expectations, 3 months",Diffusion index,7.0,0.0,none,1.0,Standardize,
+exp_t,bcrp,PN38715BM,PE,M,External trade,Traditional exports,USD millions,40.0,1.0,mom_ann,1.0,Consider seasonal/calendar effects.,
+exp_ven,bcrp,PD38041AM,PE,M,Business surveys,Sales index,Diffusion index,7.0,0.0,none,1.0,Standardize,
+fis_fbk,bcrp,PN38635FM,PE,M,Fiscal sector,Gross Fixed Capital Formation,"Thousands of Soles, Constant Prices",17.0,1.0,yoy,1.0,,
+fis_rp,bcrp,PN38656FM,PE,M,Fiscal sector,Primary Balance,"Thousands of Soles, Constant Prices",17.0,1.0,yoy,1.0,,
+fis_transf,bcrp,PN38630FM,PE,M,Fiscal sector,Fiscal Transfers,"Thousands of Soles, Constant Prices",17.0,1.0,yoy,1.0,,
+imp_bc,bcrp,PN38719BM,PE,M,External trade,Consumer-goods imports,USD millions,40.0,1.0,mom_ann,1.0,,
+imp_bk,bcrp,PN38721BM,PE,M,External trade,Capital-goods imports,USD millions,40.0,1.0,mom_ann,1.0,,
+imp_ins,bcrp,PN38720BM,PE,M,External trade,Intermediate-input imports,USD millions,40.0,1.0,mom_ann,1.0,,
+int,bcrp,PN07819NM,PE,M,Prices and financial conditions,Interbank interest rate,Percent,10.0,0.0,none,1.0,,
+ipc,bcrp,PN38705PM,PE,M,Prices and financial conditions,Consumer Price Index,Index,3.0,0.0,mom_ann,1.0,,
+ipm,bcrp,PN38919BM,PE,M,International prices,Import price index,Index,40.0,0.0,mom_ann,1.0,,
+ipx,bcrp,PN38915BM,PE,M,International prices,Export price index,Index,40.0,0.0,mom_ann,1.0,,
+liqme,bcrp,PN00190MM,PE,M,Credit and liquidity,Liquidity in dollars,Millions of Dollars,22.0,0.0,mom,1.0,,
+liqmn,bcrp,PN00187MM,PE,M,Credit and liquidity,Liquidity in soles,Millions of Soles,22.0,0.0,mom,1.0,,
+p_au,bcrp,PN01654XM,PE,M,International prices,Gold price,Price level,3.0,0.0,mom_ann,1.0,,
+p_cu,bcrp,PN01652XM,PE,M,International prices,Copper price,Price level,3.0,0.0,mom_ann,1.0,,
+p_wti,bcrp,PN01660XM,PE,M,International prices,WTI oil price,Price level,3.0,0.0,mom_ann,1.0,,
+pbim,bcrp,PN01770AM,PE,M,Sectoral activity,Monthly GDP Index,Index,51.0,1.0,mom_ann,1.0,,
+pbim_aceite,bcrp,PN02034AM,PE,M,Sectoral activity,Domestic Oil Production,Index,51.0,1.0,mom_ann,1.0,,
+pbim_anchoveta,bcrp,PN01848AM,PE,M,Sectoral activity,Anchoveta Landing,Thousands of tons,51.0,1.0,yoy,1.0,,
+pbim_arroz,bcrp,PN01778AM,PE,M,Sectoral activity,Rice Production,Thousands of tons,51.0,1.0,yoy,1.0,,
+pbim_ave,bcrp,PN01800AM,PE,M,Sectoral activity,Poultry Production,Thousands of tons,51.0,1.0,yoy,1.0,,
+pbim_cobre,bcrp,PN01873AM,PE,M,Sectoral activity,Copper Production,Thousands of units,51.0,1.0,mom_ann,1.0,,
+pbim_const,bcrp,PN01766AM,PE,M,Sectoral activity,Construction,Index,51.0,1.0,mom_ann,1.0,,
+pbim_dem,bcrp,PN01774AM,PE,M,Sectoral activity,Domestic demand,Index,51.0,1.0,mom_ann,1.0,,
+pbim_gas,bcrp,PN01884AM,PE,M,Sectoral activity,Natural Gas Production,Millions of cubic feets,51.0,1.0,mom_ann,1.0,,
+pbim_manuf,bcrp,PN01762AM,PE,M,Sectoral activity,Manufacturing Production,Index,51.0,1.0,mom_ann,1.0,,
+pbim_noprim,bcrp,PN01772AM,PE,M,Sectoral activity,Non-primary GDP,Index,51.0,1.0,mom_ann,1.0,,
+pbim_papa,bcrp,PN01777AM,PE,M,Sectoral activity,Potato Production,Thousands of tons,51.0,1.0,yoy,1.0,,
+pbim_prim,bcrp,PN01771AM,PE,M,Sectoral activity,Primary GDP,Index,51.0,1.0,mom_ann,1.0,,
+pea,bcrp,PN38050GM,PE,M,Labor market,Labor force,Thousands of persons,40.0,0.0,yoy,1.0,Check geographic coverage and methodological breaks.,
+pea_sub,bcrp,PN38062GM,PE,M,Labor market,Underemployed labor force,Thousands of persons,40.0,0.0,yoy,1.0,Check geographic coverage and methodological breaks.,
+salario,bcrp,PN38070GM,PE,M,Labor market,Monthly labor income,Currency level,40.0,0.0,yoy,1.0,Consider deflating if a real-income indicator is preferred.,
+tc,bcrp,PN01210PM,PE,M,Prices and financial conditions,Nominal exchange rate,Soles per Dollar,10.0,0.0,mom,1.0,,
+tdi,bcrp,PN38923BM,PE,M,International prices,Terms of trade,Index,40.0,0.0,yoy,1.0,,
+tpm,bcrp,PD04722MM,PE,M,Prices and financial conditions,Policy interest rate,Percent,0.0,0.0,none,1.0,Lower bound may be imposed in simulations.,
+unem,bcrp,PN38063GM,PE,M,Labor market,Unemployment rate,Percent,40.0,0.0,none,1.0,,
+consq,bcrp,PN02529AQ,PE,Q,Real activity,Private Consumption,Millions of Soles 2007=100,51.0,1.0,qoq_ann,1.0,,
+invq,bcrp,PN02533AQ,PE,Q,Real activity,Private Investment,Millions of Soles 2007=100,51.0,1.0,qoq_ann,1.0,,
+pbiq,bcrp,PN02538AQ,PE,Q,Real activity,Real Gross Domestic Product ,Millions of Soles 2007=100,51.0,1.0,qoq_ann,1.0,,
+fed,fred,DFF,US,M,Foreign sector,Federal Funds Rate,Percent,1.0,0.0,none,1.0,,
+us_cpi,fred,CPIAUCSL,US,M,Foreign sector,US Consumer Price Index,Index,14.0,0.0,mom_ann,0.0,Missing value in october 2026,
+us_indpro,fred,INDPRO,US,M,Foreign sector,US Industrial Production,Index,15.0,0.0,mom_ann,1.0,,
+vix,fred,VIXCLS,US,M,Foreign sector,Volatility Index,Index,1.0,0.0,none,1.0,,
+inei_consumo_cemento,inei,consumo_cemento,PE,M,INEI flash,consumo_cemento,Index,31.0,,,1.0,,
+inei_credito_priv_me,inei,credito_priv_me,PE,M,INEI flash,credito_priv_me,,,,,0.0,,
+inei_credito_priv_mn,inei,credito_priv_mn,PE,M,INEI flash,credito_priv_mn,,,,,0.0,,
+inei_creditos_directos_de_la_banca_multiple_por_tipo,inei,creditos_directos_de_la_banca_multiple_por_tipo,PE,M,INEI flash,creditos_directos_de_la_banca_multiple_por_tipo,,,,,0.0,,
+inei_exportaciones,inei,exportaciones,PE,M,INEI flash,exportaciones,,,,,0.0,,
+inei_exportaciones_no_tradicionales,inei,exportaciones_no_tradicionales,PE,M,INEI flash,exportaciones_no_tradicionales,,,,,0.0,,
+inei_exportaciones_tradicionales,inei,exportaciones_tradicionales,PE,M,INEI flash,exportaciones_tradicionales,,,,,0.0,,
+inei_gasto_consumo_gg,inei,gasto_consumo_gg,PE,M,INEI flash,gasto_consumo_gg,Index,31.0,1.0,,1.0,,
+inei_gasto_inversion_gg,inei,gasto_inversion_gg,PE,M,INEI flash,gasto_inversion_gg,Index,31.0,1.0,,1.0,,
+inei_igv_interno,inei,igv_interno,PE,M,INEI flash,igv_interno,Index,31.0,1.0,,1.0,,
+inei_imp_bienes_capital,inei,imp_bienes_capital,PE,M,INEI flash,imp_bienes_capital,Index,31.0,1.0,,1.0,,
+inei_imp_bienes_consumo,inei,imp_bienes_consumo,PE,M,INEI flash,imp_bienes_consumo,Index,31.0,1.0,,1.0,,
+inei_imp_materias_primas,inei,imp_materias_primas,PE,M,INEI flash,imp_materias_primas,Index,31.0,1.0,,1.0,,
+inei_importaciones,inei,importaciones,PE,M,INEI flash,importaciones,,,,,0.0,,
+inei_indicador_de_pagos_digitales,inei,indicador_de_pagos_digitales,PE,M,INEI flash,indicador_de_pagos_digitales,,,,,0.0,,
+inei_ipc_lima,inei,ipc_lima,PE,M,INEI flash,ipc_lima,,,,,0.0,,
+inei_isc_interno,inei,isc_interno,PE,M,INEI flash,isc_interno,,,,,0.0,,
+inei_morosidad_bancaria,inei,morosidad_bancaria,PE,M,INEI flash,morosidad_bancaria,,,,,0.0,,
+inei_numero_de_tarjetas_de_credito_de_la_banca_multiple,inei,numero_de_tarjetas_de_credito_de_la_banca_multiple,PE,M,INEI flash,numero_de_tarjetas_de_credito_de_la_banca_multiple,,,,,0.0,,
+inei_pagos_realizados_con_tarjetas_de_credito,inei,pagos_realizados_con_tarjetas_de_credito,PE,M,INEI flash,pagos_realizados_con_tarjetas_de_credito,,,,,0.0,,
+inei_pagos_realizados_mediante_transferencias_de_credito,inei,pagos_realizados_mediante_transferencias_de_credito,PE,M,INEI flash,pagos_realizados_mediante_transferencias_de_credito,,,,,0.0,,
+inei_petroleo_wti,inei,petroleo_wti,PE,M,INEI flash,petroleo_wti,,,,,0.0,,
+inei_prod_agropecuaria,inei,prod_agropecuaria,PE,M,INEI flash,prod_agropecuaria,,,,,0.0,,
+inei_prod_electricidad,inei,prod_electricidad,PE,M,INEI flash,prod_electricidad,Index,31.0,1.0,,1.0,,
+inei_prod_hidrocarburos,inei,prod_hidrocarburos,PE,M,INEI flash,prod_hidrocarburos,,,,,0.0,,
+inei_prod_manufactura,inei,prod_manufactura,PE,M,INEI flash,prod_manufactura,,,,,0.0,,
+inei_prod_pesca,inei,prod_pesca,PE,M,INEI flash,prod_pesca,,,,,0.0,,
+inei_reservas_intl_netas,inei,reservas_intl_netas,PE,M,INEI flash,reservas_intl_netas,,,,,0.0,,
+inei_spread_bancario_me,inei,spread_bancario_me,PE,M,INEI flash,spread_bancario_me,,,,,0.0,,
+inei_spread_bancario_mn,inei,spread_bancario_mn,PE,M,INEI flash,spread_bancario_mn,,,,,0.0,,
+inei_tasas_interes_me,inei,tasas_interes_me,PE,M,INEI flash,tasas_interes_me,,,,,0.0,,
+inei_tasas_interes_mn,inei,tasas_interes_mn,PE,M,INEI flash,tasas_interes_mn,,,,,0.0,,
+inei_tipo_cambio,inei,tipo_cambio,PE,M,INEI flash,tipo_cambio,,,,,0.0,,
+inei_tributos_aduaneros,inei,tributos_aduaneros,PE,M,INEI flash,tributos_aduaneros,,,,,0.0,,
+inei_turismo_arribos,inei,turismo_arribos,PE,M,INEI flash,turismo_arribos,,,,,0.0,,
+inei_unknown,inei,unknown,PE,M,INEI flash,unknown,,,,,0.0,,
+inei_venta_vehiculos,inei,venta_vehiculos,PE,M,INEI flash,venta_vehiculos,Index,31.0,1.0,,1.0,,
+grain_output,nbs,grain_output,CN,A,China,Grain output,万吨,,,,1.0,portal_macro,grain_output
+cpi_yoy,nbs,cpi_yoy,CN,M,China,"Headline CPI index, same month last year equals 100",上年同月=100,,,,1.0,portal_stream,cpi_yoy
+electricity_output_yoy,nbs,electricity_output_yoy,CN,M,China,"Electricity output, current-month year-on-year growth",%,,,,1.0,portal_stream,electricity_output_yoy
+fixed_asset_investment_yoy,nbs,fixed_asset_investment_yoy,CN,M,China,"Fixed-asset investment, cumulative (year-to-date) year-on-year growth",%,,,,1.0,portal_stream,fixed_asset_investment_yoy
+industrial_value_added_cum_yoy,nbs,industrial_value_added_cum_yoy,CN,M,China,"Industrial value added growth, cumulative year-on-year",%,,,,1.0,portal_stream,industrial_value_added_cum_yoy
+industrial_value_added_yoy,nbs,industrial_value_added_yoy,CN,M,China,"Industrial value added growth, current month year-on-year",%,,,,1.0,portal_stream,industrial_value_added_yoy
+m2_yoy,nbs,m2_yoy,CN,M,China,"Broad money (M2) supply, year-on-year growth",%,,,,1.0,portal_stream,m2_yoy
+manufacturing_pmi,nbs,manufacturing_pmi,CN,M,China,Official manufacturing PMI,index,,,,1.0,portal_stream,manufacturing_pmi
+non_manufacturing_pmi,nbs,non_manufacturing_pmi,CN,M,China,"Official non-manufacturing (services) PMI, business activity index",index,,,,1.0,portal_stream,non_manufacturing_pmi
+oecd_business_confidence,nbs,oecd_business_confidence,CN,M,China,"Composite business confidence (OECD, PMI-style proxy)",percentage balance,,,,1.0,oecd_sdmx,business_confidence
+oecd_consumer_confidence,nbs,oecd_consumer_confidence,CN,M,China,Composite consumer confidence (OECD),percentage balance,,,,1.0,oecd_sdmx,consumer_confidence
+oecd_cpi_yoy,nbs,oecd_cpi_yoy,CN,M,China,"Consumer price inflation, year-on-year (OECD)",%,,,,1.0,oecd_sdmx,cpi_yoy
+oecd_exports_yoy,nbs,oecd_exports_yoy,CN,M,China,"Merchandise exports growth, year-on-year (OECD)",%,,,,1.0,oecd_sdmx,exports_yoy
+oecd_gdp_monthly_ref,nbs,oecd_gdp_monthly_ref,CN,M,China,Monthly GDP reference series (OECD),index,,,,1.0,oecd_sdmx,gdp_monthly_ref
+oecd_imports_yoy,nbs,oecd_imports_yoy,CN,M,China,"Merchandise imports growth, year-on-year (OECD)",%,,,,1.0,oecd_sdmx,imports_yoy
+oecd_leading_indicator,nbs,oecd_leading_indicator,CN,M,China,Composite Leading Indicator (OECD),index (100=trend),,,,1.0,oecd_sdmx,leading_indicator
+ppi_yoy,nbs,ppi_yoy,CN,M,China,"Headline PPI index, same month last year equals 100",上年同月=100,,,,1.0,portal_stream,ppi_yoy
+property_sales_floor_cum_yoy,nbs,property_sales_floor_cum_yoy,CN,M,China,"New commercial-building sales floor space, cumulative year-on-year growth",%,,,,1.0,portal_stream,property_sales_floor_cum_yoy
+real_estate_investment_cum_yoy,nbs,real_estate_investment_cum_yoy,CN,M,China,"Real estate development investment, cumulative year-on-year growth",%,,,,1.0,portal_stream,real_estate_investment_cum_yoy
+retail_sales_nominal,nbs,retail_sales_nominal,CN,M,China,"Retail sales of consumer goods, nominal level",亿元,,,,1.0,portal_macro,retail_sales_nominal
+retail_sales_yoy,nbs,retail_sales_yoy,CN,M,China,"Retail sales of consumer goods, current-month year-on-year growth",%,,,,1.0,portal_stream,retail_sales_yoy
+gdp_current_price,nbs,gdp_current_price,CN,Q,China,Quarterly GDP at current prices,亿元,,,,1.0,portal_macro,gdp_current_price
+gdp_real_qoq_sa,nbs,gdp_real_qoq_sa,CN,Q,China,"Real GDP growth, quarter-on-quarter, seasonally adjusted",%,,,,1.0,gdp_release,gdp_real_qoq_sa
+gdp_real_yoy,nbs,gdp_real_yoy,CN,Q,China,"Real GDP growth, year-on-year",%,,,,1.0,gdp_release,gdp_real_yoy
+gdp_real_yoy_offline,nbs,gdp_real_yoy_offline,CN,Q,China,"Real GDP growth, year-on-year (offline snapshot)",%,,,,1.0,frozen_csv,gdp_real_yoy
+oecd_gdp_real_qoq_sa,nbs,oecd_gdp_real_qoq_sa,CN,Q,China,"Real GDP growth, quarter-on-quarter, seasonally adjusted (OECD)",%,,,,1.0,oecd_sdmx,gdp_real_qoq_sa
+oecd_gdp_real_yoy,nbs,oecd_gdp_real_yoy,CN,Q,China,"Real GDP growth, year-on-year (OECD)",%,,,,1.0,oecd_sdmx,gdp_real_yoy
+us_gdpnow,fred,GDPNOW,US,Q,US consensus,Atlanta Fed GDPNow,% qoq saar,0.0,0.0,none,1.0,US external block (sources/us.py),
+us_gdp_level,fred,GDPC1,US,Q,US activity,US real GDP level,Bil chn 2017$,30.0,0.0,none,1.0,US external block (sources/us.py),
+us_unrate,fred,UNRATE,US,M,US activity,US unemployment rate,%,7.0,0.0,none,1.0,US external block (sources/us.py),
+us_curve_10y3m,fred,T10Y3M,US,M,US activity,US yield-curve slope 10y-3m,pp,1.0,0.0,none,1.0,US external block (sources/us.py),
+us_dollar_broad,fred,DTWEXBGS,US,M,US activity,US broad dollar index,index,1.0,0.0,none,1.0,US external block (sources/us.py),
+us_nfci,fred,NFCI,US,M,US activity,Chicago Fed NFCI,index,7.0,0.0,none,1.0,US external block (sources/us.py),

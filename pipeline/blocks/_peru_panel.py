@@ -32,6 +32,62 @@ LAB = {"us_gdp_yoy_m": "US GDP (% YoY)", "ip_cum_yoy": "China industrial product
        "g_invq_m": "Private investment (% YoY)", "embig_lac": "EMBIG LatAm spread (bp)",
        "g_pbiq": "Peru GDP (% YoY)"}
 
+
+def recursive_expectations_fit(
+    history,
+    last: float,
+    H: int = 8,
+    *,
+    window_quarters: int | None = None,
+    phi_cap: float = 0.98,
+    mean_bounds: tuple[float, float] = (45.0, 65.0),
+) -> dict:
+    """Estimate an origin-vintaged quarterly expectations AR(1) path.
+
+    ``history`` must already be release-masked to the forecast origin. The
+    current observation anchors node 1, while later nodes recurse toward a
+    bounded implied long-run mean. The same helper is used by the prospective
+    production challenger and the historical development race.
+    """
+    series = pd.Series(history).dropna().astype(float)
+    quarterly = series.groupby(pd.PeriodIndex(series.index, freq="Q")).mean().dropna()
+    if window_quarters is not None:
+        quarterly = quarterly.tail(int(window_quarters))
+    if len(quarterly) < 12:
+        return {
+            "path": [float(last)] * H,
+            "n_quarters": int(len(quarterly)),
+            "intercept": np.nan,
+            "phi": np.nan,
+            "long_run_mean": float(last),
+            "fallback_flat": True,
+        }
+    x, y = quarterly.iloc[:-1].to_numpy(), quarterly.iloc[1:].to_numpy()
+    intercept, phi = np.linalg.lstsq(
+        np.column_stack([np.ones(len(x)), x]), y, rcond=None
+    )[0]
+    phi = float(np.clip(phi, 0.0, float(phi_cap)))
+    mean = (float(intercept / (1.0 - phi))
+            if phi < float(phi_cap) else float(quarterly.tail(20).mean()))
+    mean = float(np.clip(mean, *mean_bounds))
+    path = [float(last)]
+    for _ in range(1, H):
+        path.append(mean + phi * (path[-1] - mean))
+    return {
+        "path": path,
+        "n_quarters": int(len(quarterly)),
+        "intercept": float(intercept),
+        "phi": phi,
+        "long_run_mean": mean,
+        "fallback_flat": False,
+    }
+
+
+def recursive_expectations_path(history, last: float, H: int = 8,
+                                **kwargs) -> list[float]:
+    """Return only the recursive path for model-condition builders."""
+    return recursive_expectations_fit(history, last, H, **kwargs)["path"]
+
 # publication delays for the columns we bolt on (days after the reference month)
 _DELAYS = {"g_invq_m": 51, "us_gdp_yoy_m": 30, "us_gdp_saar_m": 30, "us_fedfunds": 1,
            "us_vix": 1, "ip_cum_yoy": 15, "m2_yoy": 13,

@@ -63,8 +63,41 @@ def _covid(frame: pd.DataFrame, cols=("base", "ref")) -> pd.Series:
 
 def knowable_before(errors: pd.DataFrame, t: pd.Timestamp) -> pd.DataFrame:
     """Errors whose outcome was PUBLISHED before origin ``t`` (release rule)."""
-    ref_end = pd.PeriodIndex(errors["ref"], freq="Q").to_timestamp(how="end")
+    ref_end = pd.PeriodIndex(errors["ref"], freq="Q").to_timestamp(how="end").normalize()
     return errors[ref_end + pd.Timedelta(days=PERU_DELAY) <= t]
+
+
+def _normalize_forecast_horizons(frame: pd.DataFrame, *, source: str) -> pd.DataFrame:
+    """Map an error source onto the medium-term fan's common horizon contract.
+
+    The legacy harness is launched while its ``base_quarter`` is the current,
+    unpublished nowcast quarter. Its raw h=1 therefore forecasts fan node 2.
+    The exact-chain harness is launched from the last released GDP quarter, so
+    its raw h=1 is fan node 1 and raw h=2 is fan node 2. Node 1 is calibrated
+    exclusively by the official information-conditional nowcast artifact and
+    must not be mixed into the medium-term error pool.
+
+    The returned ``h`` always means medium-term calibration horizon 1..7,
+    corresponding to published ``fan_node`` 2..8. ``raw_h`` preserves the
+    source convention for diagnostics and contract tests.
+    """
+    if source not in {"legacy", "exact_chain"}:
+        raise ValueError("source must be 'legacy' or 'exact_chain'")
+    if "h" not in frame.columns:
+        raise ValueError("forecast errors must contain an h column")
+
+    out = frame.copy()
+    out["raw_h"] = pd.to_numeric(out["h"], errors="raise").astype(int)
+    if (out["raw_h"] < 1).any():
+        raise ValueError("forecast horizons must be positive")
+    if source == "legacy":
+        out["fan_node"] = out["raw_h"] + 1
+        out["h"] = out["raw_h"]
+    else:
+        out = out[out["raw_h"] >= 2].copy()
+        out["fan_node"] = out["raw_h"]
+        out["h"] = out["raw_h"] - 1
+    return out
 
 
 def _weights(frame: pd.DataFrame, cfg: dict) -> np.ndarray:
@@ -160,16 +193,15 @@ def load_errors(chain_path=None) -> tuple[pd.DataFrame, pd.DataFrame]:
     chain["y_true"] = chain.ref.map(y.to_dict())
     chain["err"] = chain.y_true - chain.y_hat
     chain["origin"] = pd.to_datetime(chain.origin)
+    chain = _normalize_forecast_horizons(chain, source="exact_chain")
 
     p = pd.read_parquet(asset_path(PRIOR))
     p = p[(p.model == "S1 as-specified") & p.y_true.notna()].copy()
-    # harness base is the just-ended quarter: fan node k = harness h = k-1
-    # is already the convention used live; here horizons align one-to-one
-    # with the chain's ref = base + h definition
     prior = pd.DataFrame({
         "base": pd.PeriodIndex(pd.to_datetime(p.base_quarter), freq="Q").astype(str),
         "ref": pd.PeriodIndex(pd.to_datetime(p.ref_quarter), freq="Q").astype(str),
         "h": p.horizon.astype(int), "err": (p.y_true - p.y_hat).astype(float)})
+    prior = _normalize_forecast_horizons(prior, source="legacy")
     return chain, prior
 
 
@@ -182,14 +214,15 @@ def run(out_dir: Path | None = None):
     # today's published scales, as LOOKAHEAD references: read from the newest
     # PROMOTED run (the publication pointer), never the mutable global surface
     fan = pd.read_csv(REPO / "output" / "runs" / "latest" / "peru_gdp_fan.csv")
+    fan_forecast = fan[pd.to_numeric(fan["h"]) >= 2]
     ref_scales = {
-        REFERENCES[0]: {int(r.h): {"sigma_left": r.sigma_left,
-                                   "sigma_right": r.sigma_right, "shift": 0.0}
-                        for r in fan.itertuples()},
-        REFERENCES[1]: {int(r.h): {"sigma_left": r.structural_sigma_left,
-                                   "sigma_right": r.structural_sigma_right,
-                                   "shift": 0.0}
-                        for r in fan.itertuples()},
+        REFERENCES[0]: {int(r.h) - 1: {"sigma_left": r.sigma_left,
+                                       "sigma_right": r.sigma_right, "shift": 0.0}
+                        for r in fan_forecast.itertuples()},
+        REFERENCES[1]: {int(r.h) - 1: {"sigma_left": r.structural_sigma_left,
+                                       "sigma_right": r.structural_sigma_right,
+                                       "shift": 0.0}
+                        for r in fan_forecast.itertuples()},
     }
 
     rows, diag = [], []
@@ -210,7 +243,8 @@ def run(out_dir: Path | None = None):
                 pr = fit[int(r.h)]
                 mode = float(r.y_hat) + pr["shift"]
                 rows.append({"variant": name, "origin": t, "base": r.base,
-                             "ref": r.ref, "h": int(r.h), "y_true": float(r.y_true),
+                             "ref": r.ref, "h": int(r.h),
+                             "fan_node": int(r.fan_node), "y_true": float(r.y_true),
                              "mode": mode,
                              **_score_row(float(r.y_true), mode,
                                           pr["sigma_left"], pr["sigma_right"])})
@@ -221,7 +255,8 @@ def run(out_dir: Path | None = None):
                     continue
                 pr = ref_scales[name][int(r.h)]
                 rows.append({"variant": name, "origin": t, "base": r.base,
-                             "ref": r.ref, "h": int(r.h), "y_true": float(r.y_true),
+                             "ref": r.ref, "h": int(r.h),
+                             "fan_node": int(r.fan_node), "y_true": float(r.y_true),
                              "mode": float(r.y_hat),
                              **_score_row(float(r.y_true), float(r.y_hat),
                                           pr["sigma_left"], pr["sigma_right"])})
@@ -278,10 +313,11 @@ def production_fits(as_of, H: int = 8):
         # (silently dropping the prior would change published widths)
         d = pd.read_parquet(asset_path(asset))
         d = d[(d.model == "S1 as-specified") & d.y_true.notna()]
-        return pd.DataFrame({
+        out = pd.DataFrame({
             "base": pd.PeriodIndex(pd.to_datetime(d.base_quarter), freq="Q").astype(str),
             "ref": pd.PeriodIndex(pd.to_datetime(d.ref_quarter), freq="Q").astype(str),
             "h": d.horizon.astype(int), "err": (d.y_true - d.y_hat).astype(float)})
+        return _normalize_forecast_horizons(out, source="legacy")
 
     day1 = knowable_before(_legacy("peru_s1_day1"), as_of)
     d30 = _legacy(PRIOR)
@@ -295,7 +331,8 @@ def production_fits(as_of, H: int = 8):
     y = qq["g_pbiq"].dropna()
     y.index = pd.PeriodIndex(y.index, freq="Q").astype(str)
     ch["err"] = ch.ref.map(y.to_dict()) - ch.y_hat
-    d30 = pd.concat([d30, ch[["base", "ref", "h", "err"]].dropna()],
+    ch = _normalize_forecast_horizons(ch, source="exact_chain")
+    d30 = pd.concat([d30, ch[["base", "ref", "h", "raw_h", "fan_node", "err"]].dropna()],
                     ignore_index=True)
     day30 = knowable_before(d30, as_of)
 

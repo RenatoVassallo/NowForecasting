@@ -6,7 +6,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pipeline.lib.exact_chain import (BENCH_MEMBERS, ORIGIN_DAY, default_bases,
+from pipeline.lib.exact_chain import (BENCH_MEMBERS, ORIGIN_DAY,
+                                      _forecast_variant_specs,
+                                      _variant_prediction_row, default_bases,
                                       no_lookahead_checks, origin_for,
                                       released_by_rule)
 
@@ -50,3 +52,30 @@ def test_default_bases_and_members():
     assert bases[0] == pd.Period("2019Q1", freq="Q")
     assert bases[-1] == pd.Period("2025Q3", freq="Q")
     assert BENCH_MEMBERS == ("S1-chain", "RW", "AR(2)", "BVAR-unconditional")
+
+
+def test_research_variants_extend_but_cannot_replace_the_exact_rule():
+    base_paths = {"exp_eco3m": [55.0] * 8, "g_tdi": [2.0] * 8}
+
+    def builder(paths, context):
+        free = {**paths, "exp_eco3m": [context["exp_last"]] + [np.nan] * 7}
+        return {"S1 exp-free": {"system": ["exp_eco3m", "g_tdi"],
+                                "paths": free}}
+
+    specs = _forecast_variant_specs(
+        base_paths, builder=builder, context={"exp_last": 55.0})
+    assert "S1-chain" in specs
+    assert specs["S1-chain"]["paths"] == base_paths
+    assert np.isnan(specs["S1 exp-free"]["paths"]["exp_eco3m"][1])
+
+    def replaces_exact(paths, context):
+        return {"S1-chain": {"system": ["g_tdi"], "paths": paths}}
+
+    with pytest.raises(ValueError, match="reserved"):
+        _forecast_variant_specs(base_paths, builder=replaces_exact, context={})
+
+
+def test_row_writer_persists_every_estimated_research_variant():
+    piv = pd.DataFrame({"S1-chain": [2.1], "S1 exp-free": [2.4]}, index=[2])
+    got = _variant_prediction_row(piv, ["S1-chain", "S1 exp-free"], h=2)
+    assert got == {"S1-chain": 2.1, "S1 exp-free": 2.4}

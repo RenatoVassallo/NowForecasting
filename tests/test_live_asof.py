@@ -115,3 +115,57 @@ def test_require_exact_origin_helper():
     rc.require_exact_origin("2026-08-04", "2026-08-04", "test")   # no raise
     with pytest.raises(ValueError, match="China"):
         rc.require_exact_origin("2026-08-01", "2026-08-04", "China nowcast")
+
+
+# --------------------------------------------------------------------------- #
+# H1 (P0): historical as-of selects the RELEASED target quarter, never the
+# final snapshot's newest value. The fixture's targets run through 2026Q1, so
+# at as-of 2025-08-04 (2025Q1 released May 22 under the 52-day rule, 2025Q2
+# due Aug 21) the live target must be 2025Q2, with the snapshot's realized
+# 2025Q2..2026Q1 values explicitly OUT of the information set.
+# --------------------------------------------------------------------------- #
+
+def test_historical_as_of_selects_the_released_target_quarter():
+    live = _sweep("2025-08-04")
+    refs = pd.to_datetime(live.ref_quarter).unique()
+    assert list(refs) == [pd.Timestamp("2025-06-01")], (
+        f"live target must be 2025Q2 at as-of 2025-08-04, got {refs}")
+    assert live.y_true.isna().all()
+
+
+def test_future_realizations_never_enter_the_information_set():
+    panel = _panel()
+    y = panel.quarterly["tgt"].dropna()
+    base_value = float(y.loc[pd.Timestamp("2025-03-01")])      # 2025Q1
+    live = _sweep("2025-08-04").set_index(["origin_date", "model"]).y_hat
+    rw = live[(pd.Timestamp("2025-08-04"), "RW")]
+    assert rw == pytest.approx(base_value), (
+        "RW must carry the last RELEASED value (2025Q1); anything else means "
+        "a later realization leaked into the training history")
+
+
+def test_historical_live_target_is_masked_without_duplicate_index():
+    masked = rc.masked_live_quarterly(_panel().quarterly, "tgt",
+                                      pd.Timestamp("2025-06-01"))
+    assert masked.index.is_unique
+    assert pd.isna(masked.loc[pd.Timestamp("2025-06-01"), "tgt"])
+    assert pd.isna(masked.loc[pd.Timestamp("2026-03-01"), "tgt"])   # later too
+    assert masked.loc[pd.Timestamp("2025-03-01"), "tgt"] == \
+        _panel().quarterly.loc[pd.Timestamp("2025-03-01"), "tgt"]
+
+
+def test_current_as_of_still_selects_the_next_unpublished_quarter():
+    live = _sweep("2026-08-04")
+    refs = pd.to_datetime(live.ref_quarter).unique()
+    assert list(refs) == [pd.Timestamp("2026-06-01")]           # 2026Q2
+    assert live.origin_date.max() == pd.Timestamp("2026-08-04")
+
+
+def test_historical_terminal_origin_is_the_exact_as_of():
+    live = _sweep("2025-08-04")
+    assert live.origin_date.max() == pd.Timestamp("2025-08-04")
+
+
+def test_no_released_target_fails_clearly():
+    with pytest.raises(RuntimeError, match="no released"):
+        _sweep("2015-02-01")               # before the first release (2015Q1+52d)

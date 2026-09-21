@@ -80,7 +80,30 @@ def _refresh_providers(store=None) -> list[str]:
     return out
 
 
-def _refresh_target(name: str, store=None) -> list[str]:
+def _peru_upstream_pending(registry: dict, as_of, params=None) -> tuple[list[str], list[str]]:
+    """Probe BCRP for due spec3 panel series (live as-of only), then list
+    provider-published observations the panel still lacks. The pending list
+    goes into ``peru_gdp.refresh`` and forces the rebuild in the SAME run,
+    so an early release (July expectations, CPI on the 1st) is ingested
+    instead of waiting for the next monthly-GDP wave."""
+    from pipeline.lib import release_calendar as rc
+    from targets import peru_gdp
+
+    msgs: list[str] = []
+    try:
+        monthly, _, _, _ = peru_gdp.load_processed()
+    except Exception as exc:
+        return [], [f"release probe skipped ({type(exc).__name__}: {exc})"]
+    if getattr(params, "RELEASE_PROBE", True) and rc.is_live_as_of(as_of):
+        hits, errors = rc.probe_panel_releases(registry, monthly, as_of=as_of)
+        if hits:
+            msgs.append("release probe: published on provider: " + ", ".join(hits))
+        msgs += [f"release probe warning: {w}" for w in errors]
+    pending = rc.detected_pending_for_panel(registry, monthly, as_of=as_of)
+    return pending, msgs
+
+
+def _refresh_target(name: str, store=None, params=None) -> list[str]:
     """Run the target's own refresh hook (see targets/<name>.py:refresh)."""
     import importlib
 
@@ -93,7 +116,11 @@ def _refresh_target(name: str, store=None) -> list[str]:
         fn = getattr(mod, "refresh", None)
         if fn is None:
             return ["no refresh hook; using committed data"]
-        msgs = fn()
+        if name == "peru_gdp":
+            pending, probe_msgs = _peru_upstream_pending(registry, as_of, params)
+            msgs = probe_msgs + fn(as_of, pending_upstream=pending)
+        else:
+            msgs = fn()
         ev.record_batch(codes, "successfully_updated", as_of=as_of,
                         detail="; ".join(str(m) for m in msgs)[:400],
                         parser_version=parser)
@@ -117,7 +144,7 @@ def run(store, params) -> tuple[dict, str]:
     if params.REFRESH_DATA:
         for name in enabled:
             print(f"    [data] refreshing {name} ...", flush=True)
-            refresh_msgs[name] = _refresh_target(name, store)
+            refresh_msgs[name] = _refresh_target(name, store, params)
             for m in refresh_msgs[name]:
                 print(f"      - {m}", flush=True)
 

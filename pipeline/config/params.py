@@ -67,3 +67,15 @@ CHAIN_BLOCKS = ()
 # {internal_code: {"author": ..., "reason": ...}}; every waiver is recorded as a
 # manually_overridden event in the append-only log and in the run manifest.
 AVAILABILITY_OVERRIDES: dict = {}
+
+# Probe providers (today: the BCRP series API) for releases whose observed or
+# scalar check window is open. Only runs when the as-of IS the wall-clock
+# today; probe failures are warnings, never run failures.
+RELEASE_PROBE = True
+
+# A REQUIRED series that is merely LATE (stale_observation) is tolerated for
+# this many days past its expected release, loudly disclosed (console, report
+# caveats, frontier) instead of blocking the run; the observed-release history
+# widens the window per series to its historical worst slippage. Error
+# statuses and staleness beyond grace still hard-block.
+AVAILABILITY_GRACE_DAYS = 7

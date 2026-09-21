@@ -357,6 +357,7 @@ def build_availability(
         status: str
         latest_expected = pd.NaT
         next_release = pd.NaT
+        days_late = np.nan
 
         monitor = meta["monitor"]
         if monitor.get("manual_override", False) or collector_status == "manually_overridden":
@@ -399,7 +400,12 @@ def build_availability(
                         detail = f"reference period {last_period} is after candidate {candidate}"
                     elif last_period < due:
                         status = "stale_observation"
-                        detail = f"latest due period is {due}, cache ends at {last_period}"
+                        # lateness counts from the OLDEST missed release: how
+                        # long the provider (or our cache) has been behind
+                        missed = _release_date(last_period + 1, rule, int(lag))
+                        days_late = int((as_of_ts - missed).days)
+                        detail = (f"latest due period is {due}, cache ends at "
+                                  f"{last_period} ({days_late}d past expected)")
                     elif last_period < candidate:
                         status = "not_yet_released"
                         detail = f"next period {last_period + 1} is expected on or after {next_release.date()}"
@@ -424,6 +430,7 @@ def build_availability(
             "n_observations": int(row.get("n_observations", 0) or 0),
             "cache_modified_at": cache_mtime,
             "last_successful_refresh": last_success,
+            "days_late": days_late,
             "vintage_consistent": status != "validation_failure",
             "detail": detail,
         })

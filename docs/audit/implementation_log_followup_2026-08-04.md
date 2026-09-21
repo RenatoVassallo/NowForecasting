@@ -380,8 +380,11 @@ consumes `_code_version` and therefore the corrected identity automatically;
 the ignored source loaders remain covered by `sources_code_sha` and frozen
 assets by their manifest hashes. Documented: a hash detects difference but
 does not reconstruct an uncommitted tree; a clean commit remains the
-preferred operator condition for an external release (nothing was committed
-in this task). OPERATOR NOTE: the stored exact-chain artifact carries the
+preferred operator condition for an external release. (Historical note: no
+commit was made during the G-series session itself; the user authorized a
+commit immediately afterwards and the work landed as `3bc0023`, AFTER run
+2026-08-04__final was produced.) OPERATOR NOTE: the stored exact-chain
+artifact carries the
 OLD-format code version; the next resume attempt will refuse until the
 artifact is deliberately superseded, which is the designed behavior.
 
@@ -500,3 +503,424 @@ release so the code fingerprint is a bare commit id.
 | P1 prospective sample labels | closed | boundary tests in tests/test_evaluation.py; regenerated nowcast_benchmarks.csv (values identical, labels honest); docs relabelled |
 | P1 transactional publication | closed | tests/test_publish_versioned.py (8) + deprecation test; acceptance checks 10, 11, 12; publication manifest with 19 verified hashes |
 | P1 public fan disclosure | closed | tests/test_report_disclosure.py (4); acceptance check 9: disclosure present in report.md and report.tex/pdf, sourced from core.evaluation |
+
+# Final cleanup session (H-series, 2026-08-04)
+
+Working tree at commit `3bc0023` (clean at session start). Baseline suite:
+199 passed, 1 skipped when INEI is unreachable; in this session's runs the
+INEI test was reachable and PASSED, so the final counts show no skip. The
+locked-wheel path remains unverifiable locally (`uv` absent); CI only.
+
+## H1 (P0): historical as-of runs selected the wrong target quarter. CLOSED.
+
+**Root cause.** `live_path` derived the live target from the SNAPSHOT's
+newest realization (`dropna().index.max() + 1`), so a historical
+`--as-of 2025-08-04` on the current Peru panel nowcast 2026Q2 instead of
+2025Q2, even though the engine masked observations correctly.
+
+**Failing tests first** (6 new cases in `tests/test_live_asof.py`): the
+2025-08-04 selection on a snapshot running through 2026Q1; the RW value
+pinned to the RELEASED 2025Q1 print (no later realization can reach
+training); explicit masking of the live and later target values without a
+duplicate quarterly index (`masked_live_quarterly`); the current as-of still
+selecting 2026Q2; the exact terminal origin preserved at historical as-ofs;
+a clear failure when nothing is released.
+
+**Implementation.** `released_target_base` (in `nowcast/release_cycle.py`,
+using the canonical MIDAS publication rule; no `pipeline` import) picks the
+last released base; the live quarter is base plus one; the working frame
+blanks the live and all later target values in place. The stale-target
+guard and the G1 terminal-origin contract are unchanged and re-tested.
+Real-panel probe: as-of 2025-08-04 selects base 2025Q1, live 2025Q2; as-of
+2026-08-04 selects 2026Q2.
+
+## H2 (P1): automatic publication crashed after publishing. CLOSED.
+
+**Root cause.** `publish_run` returned a `Path` since the versioned
+redesign, while `pipeline.main` still called `len()` on it: the DEFAULT
+path (PUBLISH_PRODUCTS=True) would publish, switch the pointer, then raise
+`TypeError`. The G-series acceptance missed it because publication was
+exercised separately.
+
+**Failing test first.** A new integration harness drives the REAL `main`
+lifecycle with faked stage bodies and PUBLISH_PRODUCTS=True; pre-fix it
+reproduced the exact `TypeError` after promotion. The contract now:
+`publish_run` returns `PublicationResult(path, files)` (documented;
+`n_files` for logging), every refusal raises the typed `PublicationError`,
+and `main` reports a failed publication clearly while preserving the
+promoted run and both pointers (second integration test). `params
+.PUBLISH_DIR` lets tests and operators redirect the publication root.
+
+**Honest incident note.** The failing-first reproduction itself published
+its fake-stage surface into the REAL `products/` and switched the pointer
+(main had no PUBLISH_DIR plumbing yet): the defect demonstrated its own
+blast radius. The leaked `published/2026-08-04__integration` release was
+removed and the pointer restored to `2026-08-04__final` per the documented
+recovery; the test fixture now also pins `publish.PRODUCTS_DIR` to its
+sandbox so no future regression can leak.
+
+## H3 (P1): publication surface now derives from the promoted manifest. CLOSED.
+
+`publish_run` no longer publishes whatever files survived on disk: the
+expected surface is the manifest-recorded SURFACE entries plus every
+manifest entry of kind `figure` under `figures/`; each must be present,
+nonempty, and byte- and sha-consistent with the manifest; a recorded-but-
+deleted figure FAILS the publication (reproduced live against a copy of the
+promoted hcheck run: deleting `figures/conditioning.pdf` refuses); an
+on-disk file the manifest does not record is never published; the manifest
+run id must equal the directory name and the status must be `success`; the
+publication manifest lists exactly the published files and never itself.
+Six new failing-first tests plus fixture `kind` fields.
+
+## H4 (P1): the pointer switch is transactional. CLOSED.
+
+The old fallback unlinked the valid `latest` before creating the new link.
+Now: a UNIQUE temporary symlink is created first, then one atomic replace;
+on any failure the previous pointer is untouched, the temporary link is
+removed, the unreferenced release is quarantined as
+`published/.unreferenced-<run_id>-<stamp>` (so the run id republishes
+without manual surgery), and a clear `PublicationError` explains the
+recovery (documented in `products/PUBLISHING.md`). Three failing-first
+tests: injected replace failure, injected symlink-creation failure, and a
+successful retry after recovery.
+
+## H5 (P1): one canonical publication-date convention. CLOSED.
+
+**Root cause.** `information_stamp` (and five sibling sites) added delays
+to the 23:59:59.999999999 period end; `.days` flooring then disagreed by
+one day with the normalized MIDAS rule used by `live_path`: run
+2026-08-04__final published days-to-publication -16 (official) and -17
+(fan CSV and PDF).
+
+**Implementation.** `pipeline/blocks/_common.expected_publication`
+(+ vectorized variant) is the ONE helper: normalized period end plus delay,
+identical to `MIDAS.backtest.publication_date`. Canonicalized sites:
+`information_stamp`, `released_last`, peru `released_by`, the China block
+release mask, the fanchart release marker, `china_assets` release rules,
+`exact_chain.released_by_rule`, and `fan_calibration.knowable_before`.
+`day_in_cycle` now counts days since the NORMALIZED quarter end (the same
+concept; the old value undercounted by one day, and at the current date
+both values clamp to the day-30 anchor, so the fan is unchanged).
+Documented distinctions kept under test: `fan_calibration.PERU_DELAY = 52`
+remains the deliberately buffered knowable-before constant over the 51-day
+publication metadata. One legacy test that had pinned the nanosecond
+convention as intended behavior was updated to the canonical values.
+
+**Before/after.** `production_fits` sigmas identical to 4 decimals; the
+validation run's fan modes and widths identical to 0.0000; the only change
+is the intended metadata repair: fan and PDF now say -16/16 days, agreeing
+exactly with the official artifact.
+
+## H6 (P1): publication provenance stated honestly. PARTIAL by design.
+
+The log now records that run 2026-08-04__final was produced BEFORE commit
+`3bc0023`, that the work was committed immediately afterwards, and that the
+run therefore records the earlier dirty identity `c83b4cf+dirty.b3de1d09`
+(whose executable and configuration inventory matches the clean commit per
+independent review, differing only in `.gitignore` and the audit log). The
+old run manifest is untouched and the dirty identifier is never equated
+with `3bc0023`. This finding CANNOT close inside this session: the H-series
+changes make the tree dirty again, so the closing steps are operator
+actions: commit the reviewed changes, then ONE full production run from the
+clean commit (bare commit id, empty `code_inventory`) before the next
+external publication. The non-published validation run of this session
+records `3bc0023+dirty.38795525`, exactly as it should.
+
+## H7 (P2): evaluation header updated. CLOSED.
+
+`core/evaluation.py`'s module header now describes the three-sample policy
+(selection / inspected_post_selection / prospective) and explicitly denies
+the untouched-holdout reading; boundaries unchanged. The only remaining
+"untouched holdout" phrase in the tree is the original auditor's historical
+statement in `technical_audit_2026-08-03.md`, which is a quoted historical
+document and stays as written.
+
+## Validation and production-path acceptance
+
+Suite: **223 passed, 0 failed, 0 skipped** (INEI reachable this session;
+when offline that one test skips and is reported as skipped). `git diff
+--check` clean. Non-published validation run `2026-08-04__hcheck` (as-of
+2026-08-04, all stages, PUBLISH_PRODUCTS=False) promoted cleanly; automatic
+publication was exercised against temporary roots.
+
+All twelve acceptance checks PASS: historical target selection correct on
+the real panel; Peru and China live origins equal the as-of; official and
+fan days-to-publication both -16; TeX reports 16 days (the markdown carries
+the disclosure sections and no separate day count); publication returned
+`PublicationResult` normally with 19 verified files; a deleted recorded
+figure refused; pointer-failure behavior pinned by tests; the release
+equals the declared surface exactly; the publication manifest hashes all 19
+files; no stale artifact entered the release; and run 2026-08-04__final
+plus its publication and the `products/latest` pointer are untouched
+(after recovering from the H2 reproduction's leak, recorded above).
+
+Numerical comparison against 2026-08-04__final: official value 2.7019,
+information index 0.9173, realized weights, fan modes, fan widths, China
+centres, China band parameters, and China latest nowcasts ALL identical
+(zero delta); the sole differences are the corrected metadata (-16) and the
+run identity.
+
+## Unresolved limitations and operator actions
+
+1. Clean-commit provenance: commit the reviewed H-series changes, then run
+   one full production pipeline from the clean commit and publish THAT run
+   (bare commit id, empty code inventory) before any external release.
+2. The stored exact-chain artifact still requires supersede() before its
+   next extension (fingerprint carries the pre-commit identity).
+3. Locked-wheel verification remains CI-only (`uv` unavailable locally).
+4. Standing items: X13 before the ~2026-08-20 Peru refresh; point the
+   website at `products/latest/`; PBoC-direct M2; dated calendars;
+   store_sims hook.
+
+## Status table
+
+| finding | status | evidence |
+|---|---|---|
+| historical as-of target selection | closed | 6 failing-first tests in tests/test_live_asof.py; real-panel probe 2025-08-04 selects 2025Q2; terminal-origin and stale guards re-tested |
+| automatic publication integration | closed | integration test reproduced the TypeError pre-fix and passes post-fix; PublicationResult contract; hcheck publication returned normally with 19 files |
+| exact publication surface | closed | 6 failing-first tests; live refusal on a deleted recorded figure (conditioning.pdf); release == manifest surface exactly |
+| atomic pointer failure behavior | closed | 3 failing-first tests: both injected failures preserve the old pointer, no residue, quarantine + clean retry |
+| unified publication timing | closed | official -16 == fan -16 == TeX 16 in run 2026-08-04__hcheck; fan widths delta 0.0000; canonical helper + 6 boundary tests |
+| clean-commit publication provenance | partial | log corrected (run predates 3bc0023; dirty id recorded, never equated); tree is dirty again with H changes, so closure requires the operator commit plus one clean-commit production run |
+
+# INEI gob.pe migration (I-series, 2026-08-06)
+
+**Finding.** The Avance Coyuntural moved to gob.pe; ingestion discovered
+bulletins from the old m.inei library and would have missed N° 8 (Agosto
+2026). Discovery now walks the collection page
+(/institucion/inei/colecciones/6034-avance-coyuntural, paginated ?sheet=N)
+and each item's publication page; the PDF URL (dynamic cdn.www.gob.pe
+upload id + cache-buster) is always read from the page, never assumed.
+
+**Failing tests first** (`tests/test_inei_gobpe.py`, 7, fixtures trimmed
+from the real pages): collection parsing (id, bulletin number, slug period,
+URL); publication-page PDF + Spanish-date parsing; a page without a PDF
+fails clearly; as-of pruning at the SLUG level (unknowable pages are never
+even fetched) and at the PAGE-date level at the boundary; ingest records
+full provenance and never re-downloads; and the id-migration guard the live
+store made necessary: the julio bulletin sits in the lake under its OLD
+report id with publication date exactly at the frontier, so publication
+dates already represented in the lake are skipped even under a new id.
+A second live-store hazard closed by test: a bulletin parsed to zero rows
+is remembered in the provenance index and never re-downloaded forever.
+
+**Implementation** (`sources/inei.py`): `discover_gobpe_bulletins`,
+`parse_gobpe_publication`, `gobpe_index_asof`, `_download_gobpe_pdf`,
+`ingest_gobpe_bulletins` (injectable fetchers for tests), plus
+`_stored_pub_dates`; `update_inei_latest` now delegates to the gob.pe path
+and takes `as_of` (threaded from `targets/peru_gdp.refresh`), so historical
+runs cannot discover later bulletins. Every ingested bulletin records
+publication date, bulletin URL, PDF URL, retrieval timestamp, sha256, row
+count and reference-period range in `input/inei/gobpe_index.parquet`;
+vintage files remain immutable and the old library path remains only for
+historical rebuilds.
+
+**Live refresh (as-of 2026-08-06).** Exactly one new bulletin: N° 8 Agosto
+2026 (published 2026-08-01, sha 9b34521049...; 1,108 vintage rows;
+reference periods 2023-01 through 2026-07). Derived-panel changes: one new
+panel month (2026-07 first prints for eight fast series: ipc_lima 4.07,
+tipo_cambio -4.39, reservas, spreads, tasas, WTI), June 2026 first prints
+(cemento +12.54, electricidad +7.34, fiscal and credit blocks), and trade
+back-revisions across the restated window (importaciones 17 months,
+exportaciones 13). PDF validation digit-for-digit: electricidad May 236,7
+(+5,84) and June 232,9 (+7,34); cemento June 238,6 (+12,54); IPC Lima July
+4,07. Units as printed (index levels + YoY percent).
+
+**Production run `2026-08-06__164303`.** All stages ok; official origin
+2026-08-06 (exact as-of); versioned publication
+`products/published/2026-08-06__164303` is `products/latest` with 20 hashed
+files INCLUDING `peru_gdp_model_paths.csv`: S1-chain and S2 exp-AR1, eight
+nodes each, one common official node-1 (2.702), identical production
+widths for both, outcomes blank (`unread_at_forecast_freeze`), S2 AR
+diagnostics recorded (phi 0.817, long-run mean 54.35). No outcome was
+filled into any frozen forecast file; S2 remains a prospective challenger.
+
+**Numerical attribution (mandatory stop-and-explain).** Versus the
+2026-08-04 fan: every mode identical to 0.0000 and node 1 unchanged; 90
+percent widths at nodes 2..8 differ by +0.15 to +0.35pp. This is NOT the
+INEI refresh and NOT a recalibration: `production_fits` evaluated at Aug 4
+and Aug 6 under the current code is IDENTICAL, and the delta traces
+entirely to the fan-node horizon normalization in `fan_calibration`
+(legacy h to node h+1; exact-chain h to node h; chain h=1 excluded as the
+nowcast node) that landed with its own contract test before this session
+and simply expressed itself in the first production run since. The
+sequential-symmetric calibration rule is untouched.
+
+**Tests.** 238 passed, 0 failed, 0 skipped (INEI reachable; the network
+test skips when offline). Locked wheels remain CI-only.
+
+**Unresolved risks.** (1) gob.pe page layout is parsed by regex; a redesign
+breaks discovery loudly (INEIError), never silently. (2) The publication
+date comes from the page's Spanish date line; if the layout drops it, the
+item is excluded under as-of rather than guessed. (3) Discovery reads sheet
+1 only in production (newest items); a catch-up after months of downtime
+should raise `max_sheets`. (4) The old-vs-new id mapping rests on the
+one-bulletin-per-publication-date property of this collection; a same-day
+second bulletin would be skipped and surfaced by the availability gate.
+(5) Clean-commit provenance remains the standing operator action.
+
+## J-series: observed-release calendar and curated data frontier (2026-08-06)
+
+**Trigger.** BCRP published the July 2026 expectations block on 2026-08-05;
+our scalar rule (period end plus 7 days) said 2026-08-07. Verified live on
+the series API: `PD38045AM/json/2026-7/2026-7` returns Jul.2026 = 62.27,
+and all eight expectation-family series (`exp_sec3m`, `exp_eco3m`,
+`exp_act`, `exp_eco12m`, `exp_ord`, `exp_pbi12m`, `exp_sec12m`, `exp_ven`)
+confirm July as published. The scalar lag is a prior, not a calendar.
+
+**Design decision.** The user proposed anchoring on the portal's "Última
+actualización" column. That column is rendered client-side (the static
+HTML of the results pages carries no such metadata), so the implementation
+anchors on something sturdier that carries the same information: the
+series API itself as a presence oracle. Requesting exactly one period
+returns that period's value the moment it is published, so probing IS
+reading the provider's release state.
+
+**Mechanism** (`pipeline/lib/release_calendar.py`, probe in
+`sources/bcrp.py::probe_release`):
+
+1. Append-only store `input/calendars/observed_releases.parquet` of
+   (internal_code, period, first_seen, source); earliest sighting wins;
+   reads filter `first_seen <= as_of` (as-of safe).
+2. Per series, `expected_next_release`: registry scalar until at least
+   MIN_HISTORY=3 observed releases exist, then the observed MEDIAN lag
+   from the release-rule anchor (period end, or period start for
+   start-anchored calendars such as the quarterly SPF). The probe window
+   opens PROBE_EARLY_DAYS=2 before the scalar date with no history, and
+   from the EARLIEST lag ever observed once there is any evidence. The
+   expected date therefore updates every month as evidence accrues.
+3. The preflight annotates the availability table with
+   `calendar_next_period`, `calendar_expected_release`, `calendar_basis`,
+   `release_detected`, `detected_release_date`, and, ONLY when the as-of
+   is the wall-clock today, probes BCRP series whose window is open
+   (`probe_due_series`; failures are warnings, never run failures; hits
+   are recorded with first_seen = as-of and listed in the run meta).
+4. The gate contract is unchanged: `status` stays scalar-driven, so an
+   early provider release can never flip a required series to
+   stale_observation and block the run. Detection is DISCLOSURE: the
+   frontier shows "published, pending ingest" (amber marker) until the
+   panel rebuild ingests the observation.
+5. The nowcast figure's dashed release line now goes through
+   `expected_target_publication`: observed evidence wins only when the
+   calendar entry refers to the plotted reference quarter and its basis is
+   empirical; otherwise the canonical `expected_publication(q, delay)` is
+   used, so with no g_pbiq release history the line is unchanged.
+
+**Seed.** The eight July expectation releases were recorded with
+first_seen 2026-08-05 (operator observed; API confirmed 2026-08-06).
+
+**Curated frontier** (`FRONTIER_LAYOUT` in `pipeline/config/metadata.py`).
+Five fixed blocks exactly as specified: Domestic (cem, exp_eco3m, g_pbim,
+imp_bk, ipc), Foreign real (ip_cum_yoy, m2_yoy, us_cpi_yoy, g_us_indpro),
+Financial and commodities (us_fedfunds, us_dollar_broad, g_copper, g_wti,
+g_pe_tot), Surveys and external (spf_gdp_h0, us_gdpnow continuous cadence,
+weo_usa_ngdp_rpch WEO round cadence), Quarterly targets (us_gdp_yoy_m,
+gdp_yoy, g_pbiq). A layout code missing from the availability artifact
+fails the figure loudly. Frequency and release-rule aware period
+arithmetic: quarters stamped by any month parse to the right quarter;
+start-anchored rules anchor lags at period start; GDPNow's green edge
+clips at the as-of; WEO rounds approximate the Jan/Apr/Jul/Oct calendar
+(updates late in month for Jan and Jul, mid-month for the full editions).
+
+**Tests.** tests/test_release_calendar.py (13) and four additions to
+tests/test_data_frontier.py; suite 262 passed.
+
+## J2: production catalogue overwrite discovered and repaired (2026-08-07)
+
+**Incident.** The first full spec3 rebuild (unblocked by the MacroPy X13
+bundle) crashed with ``AttributeError: 'Pandas' object has no attribute
+'need_sa'``. Diagnosis: on 2026-07-16 the DSAPM g_invq project's catalogue
+overwrote ``input/metadata.xlsx`` (untracked, so invisible to git). The
+foreign schema (``transformation``/``transformation_code``, growth-named
+variables, 46 monthly rows) lacks ``need_sa`` and the spec columns, and it
+drops 19 production variables (the pbim sectoral block, ipc, tc, circ, the
+fiscal block). Because the X13 binary had been missing since the macOS
+migration, no rebuild ran between the overwrite and today, so the defect
+sat dormant while production consumed the frozen snapshot. Had the rebuild
+"succeeded" under that file it would have replaced the 56-variable
+production panel with another project's 46-variable panel; the crash was
+the fortunate early failure.
+
+**Repair, zero invention.** The user's file was preserved as
+``input/metadata_dsapm_ginvq.xlsx``. The production catalogue was
+reconstructed from evidence only: per-variable ``need_sa``, spec3
+transform, group, label, unit, delay and source from
+``input/peru/metadata_map_spec3.csv`` (the export of the last good build:
+56 M + 3 Q rows), and ``source_code`` from ``data_registry.json`` provider
+codes (58/59 matched; vix from the us_vix registry row). spec1/spec2 are
+collapsed to the spec3 transform (legacy, unused in production; noted in
+the file). The documented ``pbiq: qoq_ann`` catalogue quirk is preserved
+verbatim (registry known_issues; the target is computed from SA levels).
+
+**Guard.** ``core.preprocess._load_metadata`` now validates
+``REQUIRED_META_COLS`` per sheet and fails at the door with the file,
+sheet and missing columns named (tests/test_metadata_schema.py, failing
+test first). ``audit_metadata`` on the reconstruction: only the two
+pre-existing advisory notes (credme/credmn yoy, tpm zero delay).
+
+## J3: graceful lateness, auto-ingest, and run legibility (2026-08-12)
+
+**Problem.** The preflight treated a provider running two days late (BCRP
+June terms of trade; US CPI released the afternoon of its due date)
+identically to a cache rotting for a month: hard block, manual override
+each time. Separately, early releases were disclosed ("pending ingest")
+but not ingested until the next monthly-GDP wave, and long stages ran
+silently.
+
+**Auto-ingest (same-run).** The data stage now probes BCRP for spec3
+panel series whose check window is open (live as-of only), records
+sightings in the observed-release store, and passes any observation the
+provider has that the panel lacks into ``peru_gdp.refresh`` as
+``pending_upstream``, which forces the X13 rebuild in the same run.
+Proven live 2026-08-12: int 2026-07 plus the June labour block (pea,
+pea_sub, salario, unem) detected and ingested automatically. Probe
+hardening after a live incident: three-month request windows, 1.6s
+pacing, one retry (single-month bursts trip the portal's anti-bot
+challenge page).
+
+**Grace tolerance (disclose and proceed).** ``build_availability`` now
+reports ``days_late`` (from the OLDEST missed release). ``evaluate``
+returns (offenders, waived, tolerated, unknown): a REQUIRED series that
+is merely ``stale_observation`` within its grace window is tolerated and
+the run proceeds. Grace = ``AVAILABILITY_GRACE_DAYS`` (7), widened per
+series to its historical worst slippage plus two days once the
+observed-release store has three or more sightings
+(``release_calendar.grace_days_for``). Error statuses, staleness beyond
+grace, and schema violations hard-block exactly as before; documented
+manual overrides remain for judgment calls. Disclosure channels: console
+``TOLERATED LATE`` lines, ``tolerated_late``/``days_late`` columns in the
+availability artifact, red "late Nd" annotations in the data frontier,
+and a "Data caveats" sentence in the report's information-state block.
+The duplicate availability.csv save this introduced was caught by the
+strict manifest (F3) and fixed to a single post-verdict save.
+
+**Legibility.** Stage start banners with wall time in ``pipeline.main``;
+per-block "running ..." lines in the chain stage; tqdm was already active
+in the backtest. Measured profile (2026-08-12__124511): data 186s
+(network + INEI + probes), preflight 20s, nowcast 19s, forecast 273s
+(satellite MC blocks), fanchart 2s, report 2s. ``RUN_BACKTEST = False``
+remains the fast weekly mode (reuses the previous backtest).
+
+**Demonstration run.** 2026-08-12__124511 promoted and published with
+four tolerated-late disclosures (g_tdi, g_pe_tot, g_pe_tot_q 3d;
+us_cpi_yoy 0d), July expectations and CPI ingested (no amber), nowcast
+2026Q2 = 2.70 with information index 0.94. Tests: 277 passed.
+
+## J4: client-facing report redesign (2026-08-12)
+
+Cover: the four headline numbers now share one tabular row (baselines
+locked by construction; labels and sub-details in their own aligned
+rows), and the nine-line technical paragraph is replaced by three
+generated client bullets (release countdown + information completeness;
+90 percent range with a data-driven risk-tilt phrase; plain-language data
+status with internal series variants deduplicated to one name per
+economic fact). Technical content (regime, information state,
+conditioning, calibration disclosure, provider-late details with internal
+codes) moved to a new "Technical notes" frame at the end of the appendix.
+Frame titles tightened (GDP growth outlook; External anchors;
+Conditioning assumptions). LaTeX quirk found while wiring it: under this
+beamer theme, wrapping an itemize in a brace group inside a TITLED frame
+silently swallows the entire list (no compile error); fixed with a
+font-size switch and documented in the template. Verified with
+--report-from re-renders of 2026-08-12__124511 (run 2026-08-12__132047
+holds the redesigned PDF); the next full pipeline run publishes it.

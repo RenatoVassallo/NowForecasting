@@ -113,6 +113,7 @@ def test_publication_never_writes_the_deprecated_flat_surface(tmp_path):
     (run / "peru_gdp_fan.csv").write_bytes(content)
     (run / "manifest.json").write_text(_j.dumps({
         "run_id": run.name, "as_of": "2026-08-04", "code_version": "v",
+        "status": "success",
         "required": [], "files": [{"path": "peru_gdp_fan.csv",
                                    "sha256": _h.sha256(content).hexdigest(),
                                    "bytes": len(content)}]}))
@@ -123,7 +124,7 @@ def test_publication_never_writes_the_deprecated_flat_surface(tmp_path):
     (products / "builders.py").write_text("SOURCE = True\n")   # package code
     (products / "peru_gdp_fan.csv").write_text("LEGACY FLAT COPY")
 
-    out = publish_run(run, products_dir=products)
+    out = publish_run(run, products_dir=products).path
     root_entries = {p.name for p in products.iterdir()}
     assert root_entries == {"builders.py", "peru_gdp_fan.csv",
                             "published", "latest"}

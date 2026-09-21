@@ -861,8 +861,8 @@ wheels = [
 
 [[package]]
 name = "macropy"
-version = "0.1.10"
-source = { url = "https://github.com/RenatoVassallo/MacroPy/releases/download/0.1.10/macropy-0.1.10-py3-none-any.whl" }
+version = "0.1.11"
+source = { url = "https://github.com/RenatoVassallo/MacroPy/releases/download/0.1.11/macropy-0.1.11-py3-none-any.whl" }
 dependencies = [
     { name = "fredapi" },
     { name = "ipython" },
@@ -879,7 +879,7 @@ dependencies = [
     { name = "tqdm" },
 ]
 wheels = [
-    { url = "https://github.com/RenatoVassallo/MacroPy/releases/download/0.1.10/macropy-0.1.10-py3-none-any.whl", hash = "sha256:4cb683bdb04d6b3bde106afb5145ecf6cb81c3824a2cf83601edce30e7e579d9" },
+    { url = "https://github.com/RenatoVassallo/MacroPy/releases/download/0.1.11/macropy-0.1.11-py3-none-any.whl", hash = "sha256:c9f58ad74238476621889a9a621bb0a07b3859fa241d3c611d7868934f43a784" },
 ]
 
 [package.metadata]
@@ -1142,7 +1142,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "macropy", url = "https://github.com/RenatoVassallo/MacroPy/releases/download/0.1.10/macropy-0.1.10-py3-none-any.whl" },
+    { name = "macropy", url = "https://github.com/RenatoVassallo/MacroPy/releases/download/0.1.11/macropy-0.1.11-py3-none-any.whl" },
     { name = "midas", url = "https://github.com/RenatoVassallo/MIDAS/releases/download/0.2.3/midas-0.2.3-py3-none-any.whl" },
     { name = "openpyxl", specifier = ">=3.1" },
     { name = "pyarrow", specifier = ">=14" },

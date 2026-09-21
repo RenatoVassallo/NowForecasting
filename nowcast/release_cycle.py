@@ -83,6 +83,46 @@ def run_horse_race(panel, spec, models: dict, *, n_jobs: int = 8,
 # --------------------------------------------------------------------------- #
 # Live sweep (the current, unpublished quarter)
 # --------------------------------------------------------------------------- #
+def released_target_base(quarterly: pd.DataFrame, target: str, delay_days: int,
+                         today: pd.Timestamp) -> pd.Timestamp:
+    """Last target quarter RELEASED at ``today`` (canonical MIDAS convention).
+
+    The final snapshot may hold realizations far beyond a historical as-of;
+    the live target quarter is the released base plus one, never snapshot-max
+    plus one. Quarter stamps are the first day of the end month and the
+    expected publication is the normalized quarter end plus the delay
+    (``MIDAS.backtest.publication_date``).
+    """
+    s = quarterly[target].dropna()
+    today = pd.Timestamp(today).normalize()
+    released = [ix for ix in s.index
+                if publication_date(pd.Timestamp(ix), delay_days) <= today]
+    if not released:
+        raise RuntimeError(
+            f"no released {target} observation at {today.date()} under the "
+            f"{delay_days}-day rule; a live sweep needs at least one "
+            "published target quarter")
+    return pd.Timestamp(max(released))
+
+
+def masked_live_quarterly(quarterly: pd.DataFrame, target: str,
+                          live_stamp: pd.Timestamp) -> pd.DataFrame:
+    """Working quarterly frame for the live sweep at ``live_stamp``.
+
+    The live target quarter AND every later target value are explicitly
+    missing (a historical replay's snapshot already holds their
+    realizations), without duplicating an existing index row; other columns
+    are untouched and stay under the engine's own release rules.
+    """
+    live_stamp = pd.Timestamp(live_stamp)
+    out = quarterly.copy()
+    if live_stamp not in out.index:
+        extra = pd.DataFrame({target: [np.nan]}, index=[live_stamp])
+        out = pd.concat([out, extra]).sort_index()
+    out.loc[out.index >= live_stamp, target] = np.nan
+    return out
+
+
 def require_exact_origin(origin, as_of, what: str) -> None:
     """The published nowcast's origin must BE the run's as-of date.
 
@@ -111,13 +151,17 @@ def live_path(panel, spec, models: dict, *, step_days: int = 7,
     target = spec.target
     delay = spec.target_delay_days
 
-    last = panel.quarterly[target].dropna().index.max()
-    Q = (pd.Period(last, freq="Q") + 1).to_timestamp(how="end").to_period("M").to_timestamp()
+    # the live target follows the RELEASE RULE at today, never the snapshot's
+    # newest realization: a historical as-of must nowcast the quarter that was
+    # actually unpublished then
+    base = released_target_base(panel.quarterly, target, delay, today)
+    Q = (pd.Period(base, freq="Q") + 1).to_timestamp(how="end").to_period("M").to_timestamp()
 
-    # Extend the quarterly frame with the NaN target row so the engine can mask it.
+    # the live quarter and every later realization are explicitly out of the
+    # working panel (no duplicate index rows); other columns stay masked by
+    # the engine's own release rules
     p2 = copy.copy(panel)
-    p2.quarterly = pd.concat([panel.quarterly,
-                              pd.DataFrame({target: [np.nan]}, index=[Q])]).sort_index()
+    p2.quarterly = masked_live_quarterly(panel.quarterly, target, Q)
 
     pub, q_end = publication_date(Q, delay), quarter_end(Q)
     if today > pub:

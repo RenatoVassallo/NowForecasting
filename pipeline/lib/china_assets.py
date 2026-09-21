@@ -105,7 +105,7 @@ def build_tilt(ladder: pd.DataFrame, horizon_bt: pd.DataFrame,
     qser = quarterly[tgt.TARGET].dropna()
     qidx = pd.PeriodIndex(qser.index, freq="Q")
     delay = int(tgt.TARGET_DELAY_DAYS)
-    release = qidx.to_timestamp(how="end") + pd.Timedelta(days=delay)
+    release = qidx.to_timestamp(how="end").normalize() + pd.Timedelta(days=delay)
 
     ladder_hist = ladder[ladder.y_true.notna()]
     nowcast_fn = cm._realtime_nowcast_fn(ladder_hist,
@@ -116,7 +116,7 @@ def build_tilt(ladder: pd.DataFrame, horizon_bt: pd.DataFrame,
     rows: list[dict] = []
     for B in bases:
         ref8 = B + 8
-        if ref8.to_timestamp(how="end") + pd.Timedelta(days=delay) > as_of:
+        if ref8.to_timestamp(how="end").normalize() + pd.Timedelta(days=delay) > as_of:
             continue                      # h=8 outcome not yet released
         origin = (B.asfreq("M", how="end") + 1).to_timestamp()
         t0 = time.time()

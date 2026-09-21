@@ -38,8 +38,13 @@ def run_peru_fan(store, params) -> list[str]:
     official = Path(store.root) / "peru_nowcast_official.csv"
     df, lines, path = build_peru(blocks=blocks, ctx=getattr(store, "ctx", None),
                                  out_dir=Path(store.root), official_path=official)
+    prospective = Path(store.root) / "peru_gdp_model_paths.csv"
+    if not prospective.exists() or prospective.stat().st_size == 0:
+        raise RuntimeError(
+            "Peru fan did not produce the required prospective S1/S2 archive")
     if hasattr(store, "_track"):
         store._track(Path(path), "fan")
+        store._track(prospective, "prospective-forecast")
     if hasattr(store, "require"):
-        store.require("peru_gdp_fan.csv")
+        store.require("peru_gdp_fan.csv", "peru_gdp_model_paths.csv")
     return lines

@@ -5,11 +5,15 @@ backtests use FINAL-VINTAGE values with scalar release lags, which is a
 pseudo-real-time exercise, never "genuine real time"; every scoreboard carries
 ``EVALUATION_REGIME`` so the label cannot fall off in a table.
 
-Selection versus evaluation: all modelling choices made up to 2026-08-03 saw
-the full sample (research selection, documented in the audit). The holdout
-below is therefore FROZEN FORWARD: results on ``holdout`` rows are honest for
-every change made after this date, and nothing after ``SELECTION_END`` may be
-used to tune future choices.
+Three evaluation samples, no false holdouts: ``selection`` (through
+``SELECTION_END``; every modelling choice up to 2026-08-03 saw this and, in
+practice, the full record), ``inspected_post_selection`` (2023Q1 to 2026Q1;
+frozen forward on 2026-08-03 but INSPECTED during the 2026-08 audits, so it
+supports descriptive reporting and NEVER an untouched-holdout claim), and
+``prospective`` (from ``PROSPECTIVE_START``; outcomes unseen when the record
+froze on ``HOLDOUT_INSPECTED_ON``, the only window that can validate future
+choices). ``HOLDOUT_START`` survives purely as the historical boundary of the
+frozen window.
 """
 
 from __future__ import annotations

@@ -1,8 +1,9 @@
 # --------------------------------------------------------------------------- #
-# Policy: the repository publishes the MODELING FRAMEWORK AND PIPELINE STAGES.
-# Data retrieval (sources/), databases and caches (input/, output/, *.parquet),
-# development notebooks and generated artifacts stay local. Results are
-# published on the companion website, not here.
+# Policy: the repository publishes the MODELING FRAMEWORK, THE PIPELINE STAGES
+# and the DATA-RETRIEVAL LAYER (sources/). The data itself - databases and
+# caches (input/, output/, *.parquet) - plus development notebooks and
+# generated artifacts stay local. Results are published on the companion
+# website, not here.
 # --------------------------------------------------------------------------- #
 
 # Secrets (FRED key etc.) - never commit
@@ -12,6 +13,7 @@
 
 # Environments / caches
 .venv/
+.venv-macos/
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -22,9 +24,8 @@ __pycache__/
 .DS_Store
 .claude/
 
-# Data layer: retrieval code, caches and databases (provider licensing;
-# the public interface is documented in README and AGENTS.md)
-sources/
+# Data layer: the retrieval code in sources/ IS versioned; the data it pulls
+# is not (provider licensing). Caches and databases stay local.
 input/
 **/input/
 output/

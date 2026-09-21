@@ -87,10 +87,31 @@ def _group_is_financial(row: pd.Series) -> bool:
     return any(tok in text for tok in tokens)
 
 
+# columns the preprocess pipeline actually consumes; validated on load so a
+# catalogue from another project (the DSAPM g_invq file overwrote this one on
+# 2026-07-16) fails at the door instead of deep inside the X13 step
+REQUIRED_META_COLS = (
+    "source_code", "variable", "frequency", "group", "need_sa",
+    "publication_delay_days", "source", "active",
+) + SPEC_COLUMNS
+
+
 def _load_metadata(metadata_path: str | Path | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     path = INPUT_DIR / "metadata.xlsx" if metadata_path is None else Path(metadata_path)
     monthly = pd.read_excel(path, sheet_name="Monthly")
     quarterly = pd.read_excel(path, sheet_name="Quarterly")
+    for sheet_name, frame in (("Monthly", monthly), ("Quarterly", quarterly)):
+        missing = [c for c in REQUIRED_META_COLS if c not in frame.columns]
+        if missing:
+            raise RuntimeError(
+                f"{path} sheet {sheet_name!r} is missing required columns "
+                f"{missing}: this is not the production preprocessing "
+                "catalogue (need_sa + spec1/spec2/spec3 schema). A file with "
+                "'transformation'/'transformation_code' columns is the DSAPM "
+                "g_invq catalogue; restore the production metadata.xlsx "
+                "(reconstruction documented in docs/audit) before rebuilding "
+                "the spec3 panel."
+            )
     return monthly, quarterly
 
 
@@ -336,7 +357,13 @@ def download_raw_inputs(
 
 
 def locate_x13_binary() -> Path:
-    """Find a usable X13 binary."""
+    """Find a usable X13 binary.
+
+    Precedence: a binary on PATH, then the X13PATH env var (explicit
+    operator choices), then the copy BUNDLED WITH MacroPy (the canonical
+    source for this project; Census build compiled per platform), then the
+    legacy filesystem fallbacks.
+    """
 
     import shutil
     import os
@@ -347,6 +374,11 @@ def locate_x13_binary() -> Path:
         Path("/opt/homebrew/bin/x13as"),
         Path("/usr/local/bin/x13as"),
     ]
+    try:
+        from MacroPy.x13 import x13_path as _macropy_x13
+        candidates.insert(0, Path(_macropy_x13()))
+    except Exception:
+        pass                      # no MacroPy or no bundle for this platform
     env_path = os.getenv("X13PATH")
     if env_path:
         candidates.insert(0, Path(env_path))
@@ -357,7 +389,9 @@ def locate_x13_binary() -> Path:
         if path.exists():
             return path.resolve()
     raise FileNotFoundError(
-        "X13 binary not found. Expected one of: local DSAPM cache, PATH, /opt/homebrew/bin/x13as, /usr/local/bin/x13as."
+        "X13 binary not found. Expected one of: the MacroPy bundle "
+        "(MacroPy.x13.x13_path), X13PATH, PATH, local DSAPM cache, "
+        "/opt/homebrew/bin/x13as, /usr/local/bin/x13as."
     )
 
 

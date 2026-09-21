@@ -43,10 +43,13 @@ def test_prospective_start_is_sourced_not_hardcoded(monkeypatch):
 
 def test_both_report_surfaces_carry_the_disclosure():
     src = (REPO / "pipeline" / "stages" / "report.py").read_text()
-    # the markdown assembly and the tex info paragraph both call the ONE builder
+    # the markdown assembly and the tex technical notes both call the ONE builder
     assert src.count("calibration_disclosure()") >= 2
     tex = (REPO / "pipeline" / "report" / "template.tex").read_text()
-    assert "<<INFOSTATE>>" in tex          # the tex carrier of regime + disclosure
+    # since the client-facing redesign (J4) the tex carrier of the regime and
+    # calibration disclosure is the appendix Technical notes frame
+    assert "<<TECHNOTES>>" in tex
+    assert "Technical notes" in tex
     assert "pseudo real time" in src       # the regime sentence stays
 
 

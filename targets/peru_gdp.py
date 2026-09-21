@@ -144,37 +144,78 @@ def rebuild_panel(*, refresh_downloads: bool = True) -> list[str]:
     return [f"spec3 panel REBUILT (X13 + transforms): monthly through {m_last:%Y-%m}"]
 
 
-def refresh(as_of=None) -> list[str]:
+def refresh(as_of=None, *, pending_upstream: list[str] | None = None) -> list[str]:
     """Pull fresh Peru data; rebuild the model panel when a release is due.
 
     * **INEI** bulletins: live idempotent update into ``input/inei``.
     * **spec3 caches** (the modelling panel production actually consumes):
-      when the release calendar says a new observation is DUE and the cache
-      lacks it, the panel is rebuilt through the full preprocess (download,
-      X13, transforms). If that rebuild is impossible the refresh RAISES
-      ``PanelRebuildError``: a refresh that only updated an unrelated INEI
-      cache must never count as success while the model panel is stale.
+      the panel is rebuilt through the full preprocess (download, X13,
+      transforms) when EITHER the scalar release calendar says the monthly
+      GDP proxy is due, OR ``pending_upstream`` names observations the
+      provider has already published that the panel lacks (the data stage
+      computes that list from the observed-release store after probing, so
+      an early release, e.g. the July expectations block, is ingested in
+      the same run instead of waiting for the next g_pbim wave). If the
+      rebuild is impossible the refresh RAISES ``PanelRebuildError``: a
+      refresh that only updated an unrelated INEI cache must never count
+      as success while the model panel is stale.
     """
 
     msgs = []
     try:
         from sources.inei import update_inei_latest
-        res = update_inei_latest()
-        new = res.get("new_reports", res.get("new", res)) if isinstance(res, dict) else res
-        if isinstance(new, (list, tuple)):
-            msgs.append(f"INEI: {len(new)} new bulletin(s) ingested" if len(new)
-                        else "INEI: no new bulletins")
+        res = update_inei_latest(as_of=as_of)
+        added = res.get("added", []) if isinstance(res, dict) else []
+        if added:
+            msgs.append(f"INEI: {len(added)} new bulletin(s) ingested: "
+                        + ", ".join(added))
         else:
-            msgs.append(f"INEI update: {new}")
+            frontier = ""
+            try:
+                import pandas as _pd
+                gi = _pd.read_parquet(REPO_ROOT / "input/inei/gobpe_index.parquet")
+                newest = gi.sort_values("pub_date").iloc[-1]
+                frontier = (f" (lake current through {newest.report_id}, "
+                            f"published {_pd.Timestamp(newest.pub_date).date()})")
+            except Exception:
+                pass
+            msgs.append("INEI: no new bulletins" + frontier)
+        if isinstance(res, dict) and res.get("failures"):
+            msgs.append(f"INEI: {len(res['failures'])} bulletin(s) FAILED to "
+                        f"ingest: {res['failures']}")
     except ImportError:
         msgs.append("INEI: loader not available in this checkout; using cached data")
     except Exception as exc:
         msgs.append(f"INEI: update FAILED ({type(exc).__name__}: {exc}); using cached data")
 
+    # BCRP private investment (g_invq): the Peru block conditions on it, and
+    # nothing used to refresh its cache, so it went stale until the
+    # availability preflight blocked the run. Tolerated on failure like INEI
+    # above: staleness is enforced by the preflight, not here.
+    try:
+        from sources.bcrp import refresh_private_investment
+        inv = refresh_private_investment()
+        if inv["added"]:
+            msgs.append(f"BCRP private investment: {len(inv['added'])} new quarter(s) "
+                        f"(through {inv['last_period']} = {inv['last_value']:.2f}% YoY)")
+        else:
+            msgs.append("BCRP private investment: no new quarters "
+                        f"(through {inv['last_period']})")
+    except ImportError:
+        msgs.append("BCRP: provider not available in this checkout; using cached data")
+    except Exception as exc:
+        msgs.append(f"BCRP private investment: update FAILED "
+                    f"({type(exc).__name__}: {exc}); using cached data")
+
     due, why = panel_release_due(as_of)
+    if not due and pending_upstream:
+        due = True
+        why = ("provider has published observations the panel lacks: "
+               + ", ".join(pending_upstream))
     if not due:
         msgs.append(f"spec3 panel: current ({why})")
         return msgs
+    msgs.append(f"spec3 panel: rebuild triggered ({why})")
     try:
         msgs += rebuild_panel()
     except Exception as exc:

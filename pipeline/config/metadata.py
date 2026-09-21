@@ -94,3 +94,45 @@ FORECAST: dict[str, dict] = {
 FORECAST_COMBO = "Combo"
 FORECAST_LOOKBACK_YEARS = 12     # backtest window feeding weights/fans
 FAN = {"level": 0.90, "lookback_years": 10, "exclude_years": (2020, 2021)}
+
+# --------------------------------------------------------------------------- #
+# Data-frontier report layout: the curated per-variable information clocks.
+# Entries are (internal_code, display_label) or (code, label, opts); opts
+# support {"cadence": "continuous", "interval_days": n} for sources updating
+# quasi-continuously and {"cadence": "weo_rounds"} for the IMF WEO calendar.
+# A code absent from the availability artifact fails the figure loudly.
+# --------------------------------------------------------------------------- #
+FRONTIER_LAYOUT = (
+    ("Domestic", (
+        ("cem",        "Cement consumption"),
+        ("exp_eco3m",  "Economy expectations (3m)"),
+        ("g_pbim",     "Monthly GDP"),
+        ("imp_bk",     "Capital-goods imports"),
+        ("ipc",        "CPI (Lima)"),
+    )),
+    ("Foreign real", (
+        ("ip_cum_yoy",  "China industrial production"),
+        ("m2_yoy",      "China broad money (M2)"),
+        ("us_cpi_yoy",  "US CPI inflation"),
+        ("g_us_indpro", "US industrial production"),
+    )),
+    ("Financial and commodities", (
+        ("us_fedfunds",     "Fed funds rate"),
+        ("us_dollar_broad", "US broad dollar index"),
+        ("g_copper",        "Copper price"),
+        ("g_wti",           "WTI oil price"),
+        ("g_pe_tot",        "Peru terms of trade"),
+    )),
+    ("Surveys and external", (
+        ("spf_gdp_h0", "SPF US real GDP (current Q)"),
+        ("us_gdpnow",  "Atlanta Fed GDPNow",
+         {"cadence": "continuous", "interval_days": 7}),
+        ("weo_usa_ngdp_rpch", "IMF WEO (US real GDP)",
+         {"cadence": "weo_rounds"}),
+    )),
+    ("Quarterly targets", (
+        ("us_gdp_yoy_m", "US GDP growth"),
+        ("gdp_yoy",      "China GDP growth"),
+        ("g_pbiq",       "Peru GDP growth"),
+    )),
+)

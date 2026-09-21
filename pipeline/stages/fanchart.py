@@ -137,6 +137,18 @@ def load_context(as_of=None, store=None) -> dict:
             f"({sweep['y_hat'].iloc[-1]:.4f} vs {official['value']:.4f}); "
             "the stages are not consuming one artifact")
     ctx["official"] = official
+
+    # data frontier inputs: the run's own availability artifact + registry
+    avail_path = root / "data_quality" / "availability.csv"
+    if not avail_path.exists():
+        raise FileNotFoundError(
+            f"fanchart input missing: {avail_path}; the preflight writes it "
+            "before any estimation stage")
+    import json as _json
+    reg_path = REPO / "pipeline" / "config" / "data_registry.json"
+    ctx["availability"] = pd.read_csv(avail_path)
+    ctx["registry"] = _json.loads(reg_path.read_text())
+    ctx["as_of"] = as_of
     return ctx
 
 
@@ -187,7 +199,12 @@ def fig_nowcast_cycle(ctx) -> plt.Figure:
     sweep, pools = ctx["sweep"], ctx["rc_pools"]
     spec = ctx["peru_spec"]
     ref_q = pd.Period(pd.Timestamp(sweep["ref"].iloc[0]), freq="Q")
-    pub = ref_q.to_timestamp(how="end") + pd.Timedelta(days=spec.target_delay_days)
+    # observed-release calendar first (evidence for THIS quarter's release),
+    # canonical scalar rule otherwise; identical while no history exists
+    from pipeline.lib.release_calendar import expected_target_publication
+    pub, pub_basis = expected_target_publication(
+        ref_q, spec.target_delay_days,
+        availability=ctx.get("availability"), code=spec.target)
 
     fig = plt.figure(figsize=(11.8, 5.0))
     gs = fig.add_gridspec(1, 2, width_ratios=(4.4, 1.0), wspace=0.04)
@@ -210,7 +227,9 @@ def fig_nowcast_cycle(ctx) -> plt.Figure:
                 textcoords="offset points", fontsize=15, fontfamily=S.SERIF,
                 color=S.ACCENT, fontweight="bold")
     ax.axvline(pub, color=S.INK, lw=1.1, ls=(0, (4, 3)))
-    ax.annotate("expected release", (pub, ax.get_ylim()[0]), xytext=(-8, 12),
+    pub_note = ("expected release" if pub_basis == "canonical_lag"
+                else "expected release (observed cadence)")
+    ax.annotate(pub_note, (pub, ax.get_ylim()[0]), xytext=(-8, 12),
                 textcoords="offset points", rotation=90, fontsize=8, color=S.MUTED,
                 ha="right", va="bottom")
     _date_axis(ax, xs.min(), pub + pd.Timedelta(days=7), years_y=-0.13)
@@ -383,12 +402,97 @@ def fig_fan_main(ctx) -> plt.Figure:
     return fig
 
 
+
+
+def fig_data_frontier(ctx):
+    """Curated per-variable information clocks in five fixed blocks: GREEN
+    through the last released observation, GREY while waiting for the next
+    expected release, white beyond. A star marks series whose latest
+    observation reached the panel within the seven days before the as-of;
+    an amber marker flags releases the provider has already published but
+    the panel has not ingested yet (observed-release calendar detection)."""
+    from pipeline.config.metadata import FRONTIER_LAYOUT
+    from pipeline.lib.data_frontier import frontier_frame
+
+    as_of = ctx["as_of"]
+    f = frontier_frame(ctx["availability"], ctx["registry"], as_of,
+                       layout=FRONTIER_LAYOUT)
+    x0 = as_of - pd.DateOffset(months=6)
+    x1 = as_of + pd.DateOffset(months=3)
+    AMBER = "#d9a441"
+
+    n_rows = len(f) + f.block.nunique()           # series + block-title rows
+    fig, ax = plt.subplots(figsize=(9.8, 0.28 * n_rows + 1.6))
+    y = 0
+    yticks, ylabels = [], []
+    block_rows = []
+    for block, rows in reversed([(b, g) for b, g in f.groupby("block", sort=False)]):
+        for _, r in rows.iloc[::-1].iterrows():   # bottom-up inside the block
+            green_start = pd.Timestamp(x0)
+            ax.barh(y, (min(r.obs_end, x1) - green_start).days, left=green_start,
+                    height=0.62, color="#79b791", edgecolor="none", zorder=3)
+            if r.next_release > r.obs_end:
+                ax.barh(y, (min(r.next_release, x1) - max(r.obs_end, green_start)).days,
+                        left=max(r.obs_end, green_start), height=0.62,
+                        color="#d3d3d0", edgecolor="none", zorder=3)
+            if r.released_pending_ingest:
+                d = pd.Timestamp(r.detected_release_date)
+                ax.plot([d], [y], marker="v", ms=6, color=AMBER, zorder=6)
+                ax.annotate(f"out {d.strftime('%d %b').lower()}, pending ingest",
+                            (d, y), xytext=(5, -2.5), textcoords="offset points",
+                            fontsize=6.5, color=AMBER, zorder=6)
+            elif r.continuous:
+                ax.annotate("updates ~weekly", (min(r.next_release, x1), y),
+                            xytext=(4, -3), textcoords="offset points",
+                            fontsize=6.5, color=S.MUTED, zorder=6)
+            elif pd.Timestamp(x0) < r.next_release <= x1:
+                ax.plot([r.next_release], [y], marker="|", ms=11, color=S.INK,
+                        zorder=5)
+                if r.days_to_next < 0:
+                    # provider running late vs its expected release
+                    ax.annotate(f"late {-r.days_to_next}d", (r.next_release, y),
+                                xytext=(4, -3), textcoords="offset points",
+                                fontsize=6.5, color="#b04a4a", zorder=6)
+                elif r.next_release <= x1 - pd.Timedelta(days=6):
+                    ax.annotate(f"{r.days_to_next}d", (r.next_release, y),
+                                xytext=(4, -3), textcoords="offset points",
+                                fontsize=6.5, color=S.MUTED, zorder=6)
+            name = r.label if len(r.label) <= 34 else r.label[:33] + "…"
+            if r.new_this_run:
+                # mathtext star: independent of the text font's glyph coverage
+                name = "$\\bigstar$ " + name
+            yticks.append(y)
+            ylabels.append(name)
+            y += 1
+        block_rows.append((y, block))             # title row above the block
+        y += 1
+    for yb, block in block_rows:
+        ax.text(pd.Timestamp(x0) - pd.Timedelta(days=3), yb - 0.28, block.upper(),
+                fontsize=7.5, color=S.MUTED, fontweight="bold",
+                ha="left", va="center", clip_on=False)
+    ax.axvline(as_of, color=S.INK, lw=1.1, ls="--", zorder=4)
+    ax.annotate(f"as of {as_of.date()}", (as_of, y - 0.6), xytext=(5, 0),
+                textcoords="offset points", fontsize=8, color=S.INK)
+    ax.set_yticks(yticks)
+    ax.set_yticklabels(ylabels, fontsize=7.5)
+    ax.set_xlim(x0, x1)
+    ax.set_ylim(-0.8, y - 0.2)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %y"))
+    ax.grid(axis="x", color=S.BORDER, lw=0.5, alpha=0.7)
+    ax.grid(axis="y", visible=False)
+    ax.set_title("Data frontier: released (green), awaiting next release (grey); "
+                 "$\\bigstar$ = new in this run, amber = published, pending ingest",
+                 loc="left", fontsize=10)
+    fig.tight_layout()
+    return fig
+
 FIGURES = {
     "nowcast_cycle": fig_nowcast_cycle,
     "cycle_grid": fig_cycle_grid,
     "china_tot": fig_china_tot,
     "conditioning": fig_conditioning,
     "fan_main": fig_fan_main,
+    "data_frontier": fig_data_frontier,
 }
 
 

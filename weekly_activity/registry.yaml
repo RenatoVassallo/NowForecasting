@@ -1,0 +1,62 @@
+schema_version: 0.1.0
+product:
+  name: Peru weekly information-set activity nowcast
+  target: Monthly seasonally adjusted GDP growth, month on month percent log change
+  explicit_non_target: Observed weekly GDP does not exist and is not constructed.
+  evaluation_regime: pseudo_real_time_final_vintage_observation_clock
+sources:
+  - internal_code: coes_executed_demand
+    institution: COES
+    url: https://appserver.coes.org.pe/waMediciones/Help
+    endpoint: https://appserver.coes.org.pe/waMediciones/api/Demanda?fechaInicio={YYYY-MM-DD}
+    frequency: daily, 48 half-hour MW readings by area
+    geographic_coverage: COES reported areas, Peru
+    observed_history_verified: 2015-01-02 through 2026-08-10
+    publication_timestamp_history: unavailable
+    revision_policy: unknown, raw response snapshots retained
+    transformation: sum(h1...h48) * 0.5 for stable Norte, Centro, Sur core areas, then monthly-to-date aggregation
+    validation: exactly 48 finite readings in all three core areas; retain incomplete optional areas as diagnostics; no duplicate area-date
+    status: viable
+  - internal_code: lbtr_client_operations
+    institution: Banco Central de Reserva del Peru
+    url: https://estadisticas.bcrp.gob.pe/estadisticas/series/diarias/operaciones-sistema-lbtr-d
+    provider_codes: [PD38073DD, PD38075DD, PD38077DD, PD38079DD]
+    frequency: daily business-day observations
+    geographic_coverage: Peru financial-system client operations
+    observed_history_verified: 2019-01-02 through 2026-08-07
+    publication_timestamp_history: unavailable
+    revision_policy: unknown, raw response snapshots retained
+    transformation: log1p of month-to-date daily averages, separated by value/count and MN/ME
+    validation: requested four columns, unique dates, non-negative finite published values
+    status: viable
+  - internal_code: google_trends_peru_topics
+    institution: Google Trends
+    url: https://developers.google.com/search/apis/trends
+    frequency: weekly
+    geographic_coverage: Peru
+    publication_timestamp_history: snapshot-specific only
+    revision_policy: index is relative to query window and may change on redownload
+    transformation: complete weeks only; no interpolation or backfill
+    validation: frozen snapshot must include topic, geography, query window, download timestamp, and unique topic-week rows
+    status: disabled_pending_stable_authorized_access
+target:
+  source: Existing Peru BCRP/INEI monthly GDP cache, X13-adjusted locally
+  source_path: input/peru/monthly_sa_spec3.parquet
+  level_column: pbim
+  transformation: 100 * diff(log(seasonally_adjusted_level))
+  availability_rule: assumed period end plus 51 days
+  availability_rule_status: conservative scalar assumption, not historical release calendar
+  revisions: latest-revised full-sample X13 target; no target-vintage archive
+  limitation: Historical evaluation is not genuine real time until GDP and SA vintages are captured.
+models:
+  - AR(1) monthly GDP benchmark
+  - Ridge electricity plus calendar controls
+  - Ridge electricity plus LBTR plus calendar controls, with Trends only when a frozen snapshot is available
+backtest:
+  origin_updates: [week_1, week_2, month_end]
+  estimation: expanding window
+  evaluation_start: 2015-01
+  scaling: fit within each training origin only
+  comparisons: [RMSE, MAE, directional_accuracy]
+  subperiods: [pre_2020, 2020_2021, post_2020]
+  test_start: 2024-01

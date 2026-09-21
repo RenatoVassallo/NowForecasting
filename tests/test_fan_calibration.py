@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 
 from pipeline.lib.fan_calibration import (MIN_POOL, _fit_variant,
+                                          _normalize_forecast_horizons,
                                           knowable_before)
 
 
@@ -25,6 +26,26 @@ def test_knowable_before_honours_the_release_rule():
     # 2026Q2 publishes ~Aug 21 (52d): unknowable on Aug 3, knowable on Aug 22
     assert len(knowable_before(e, pd.Timestamp("2026-08-03"))) == 0
     assert len(knowable_before(e, pd.Timestamp("2026-08-22"))) == 1
+
+
+def test_legacy_and_exact_errors_share_the_same_fan_node_contract():
+    legacy = pd.DataFrame({"h": [1, 2], "err": [1.0, 2.0]})
+    exact = pd.DataFrame({"h": [1, 2, 8], "err": [10.0, 20.0, 80.0]})
+
+    legacy_out = _normalize_forecast_horizons(legacy, source="legacy")
+    exact_out = _normalize_forecast_horizons(exact, source="exact_chain")
+
+    assert legacy_out[["raw_h", "h", "fan_node"]].to_dict("records") == [
+        {"raw_h": 1, "h": 1, "fan_node": 2},
+        {"raw_h": 2, "h": 2, "fan_node": 3},
+    ]
+    assert exact_out[["raw_h", "h", "fan_node"]].to_dict("records") == [
+        {"raw_h": 2, "h": 1, "fan_node": 2},
+        {"raw_h": 8, "h": 7, "fan_node": 8},
+    ]
+    assert 10.0 not in exact_out.err.to_list(), (
+        "exact-chain h=1 is the official nowcast node and must never enter "
+        "medium-term fan calibration")
 
 
 def test_fit_is_symmetric_monotone_and_starves_honestly():

@@ -66,6 +66,10 @@ sequentially on the exact production rule's own errors, using only outcomes
 published before each origin (`pipeline/lib/fan_calibration.py`), and every
 evaluation artifact is stamped `pseudo_real_time_final_vintage` because the
 input panels are final-vintage reconstructions, not true historical vintages.
+Every successful publication also freezes the incumbent S1 path and the S2
+recursive-AR(1) challenger in `peru_gdp_model_paths.csv`, with a common
+official nowcast and common production widths. This creates an immutable
+prospective record for later center and density evaluation.
 
 ## Reproducibility boundary
 

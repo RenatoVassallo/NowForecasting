@@ -159,7 +159,8 @@ def live_profile(as_of: pd.Timestamp):
     delay = int(getattr(tgt, "TARGET_DELAY_DAYS", 18))
     qser = quarterly[tgt.TARGET].dropna()
     qidx = pd.PeriodIndex(qser.index, freq="Q")
-    released_mask = (qidx.to_timestamp(how="end") + pd.Timedelta(days=delay)) <= as_of
+    released_mask = (qidx.to_timestamp(how="end").normalize()
+                     + pd.Timedelta(days=delay)) <= as_of
     if not released_mask.any():
         raise RuntimeError(f"no released China GDP at {as_of.date()}")
     base_rule = qidx[released_mask].max()

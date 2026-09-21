@@ -45,15 +45,66 @@ def _tokens(ctx, as_of) -> dict:
     state = ("the first node is well informed" if node.get("information_index", 0) > 0.75
              else "the run is early in the release cycle: the first node is no better "
                   "informed than the second")
-    info = ("Evaluation regime: pseudo real time on final-vintage data "
-            "(scalar release rules; not genuine real time). "
-            f"As of {node.get('as_of', '')}: {abs(int(node.get('days_to_publication', 0)))} days to the "
-            f"{node['quarter']} GDP release, information index "
-            f"{node.get('information_index', float('nan')):.2f} - {state}. "
-            "Conditioning: US from the SPF and the IMF WEO live round; China from the "
-            "published China profile; terms of trade from the monthly commodity BVAR; "
-            "business expectations held at their last released value. "
-            + calibration_disclosure())
+    # ---- client-facing bullets (cover) and technical notes (appendix) --------
+    avail = ctx.get("availability")
+    late_rows = []
+    if avail is not None and "tolerated_late" in getattr(avail, "columns", ()):
+        late_rows = list(avail[avail["tolerated_late"] == True]  # noqa: E712
+                         .itertuples(index=False))
+
+    dtp = abs(int(node.get("days_to_publication", 0)))
+    info_pct = 100.0 * float(node.get("information_index", float("nan")))
+    up = float(node["hi90"]) - float(node["mode"])
+    dn = float(node["mode"]) - float(node["lo90"])
+    skew = ("risks tilted to the downside" if dn > 1.25 * up
+            else "risks tilted to the upside" if up > 1.25 * dn
+            else "risks broadly balanced")
+    def _client_name(name: str) -> str:
+        # one plain name per economic fact: the registry's internal variants
+        # (domestic copy, commodity block, quarterly target) collapse
+        low = str(name).lower()
+        if "terms of trade" in low or "terms-of-trade" in low:
+            return "Peru terms of trade"
+        return str(name).split(",")[0].strip()
+
+    if late_rows:
+        seen: dict[str, int] = {}
+        for r in late_rows:
+            n = _client_name(r.variable_name)
+            seen[n] = max(seen.get(n, 0), int(r.days_late))
+        names = ", ".join(
+            f"{n} ({d}d late at source)" if d > 0 else f"{n} (due today)"
+            for n, d in seen.items())
+        data_line = f"Awaiting at source, carried at last value: {names}."
+    else:
+        data_line = "All scheduled inputs arrived on time."
+    client_lines = "\n".join(
+        f"  \\item {_esc(t)}" for t in (
+            f"{dtp} days to the official {node['quarter']} GDP release; "
+            f"information set {info_pct:.0f}% complete.",
+            f"90% of outcomes between {float(node['lo90']):.1f}% and "
+            f"{float(node['hi90']):.1f}%; {skew}.",
+            data_line,
+        ))
+
+    tech_items = [
+        "Evaluation regime: pseudo real time on final-vintage data (scalar "
+        "release rules; not genuine real time).",
+        f"As of {node.get('as_of', '')}: {dtp} days to the {node['quarter']} "
+        f"GDP release; information index "
+        f"{node.get('information_index', float('nan')):.2f} - {state}.",
+        "Conditioning: US from the SPF and the IMF WEO live round; China from "
+        "the published China profile; terms of trade from the monthly "
+        "commodity BVAR; business expectations held at their last released "
+        "value.",
+        calibration_disclosure(),
+    ]
+    if late_rows:
+        tech_items.append(
+            "Provider-late required inputs carried at their last release: "
+            + ", ".join(f"{r.internal_code} ({int(r.days_late)}d past expected)"
+                        for r in late_rows) + ".")
+    technotes = "\n".join(f"  \\item {_esc(t)}" for t in tech_items)
 
     fanrows = "\n".join(
         f"        {r['quarter']} & {r['mode']:.1f} & "
@@ -131,7 +182,9 @@ def _tokens(ctx, as_of) -> dict:
         "<<WEO1>>": weo1, "<<WEO2>>": weo2,
         "<<TOTNOW>>": f"{ctx['tot'].iloc[0]['mode']:.0f}",
         "<<TOTSRC>>": _esc(ctx["tot"].iloc[0]["source"]),
-        "<<INFOSTATE>>": _esc(info),
+        "<<CLIENTLINES>>": client_lines,
+        "<<TECHNOTES>>": technotes,
+        "<<TOTQ>>": _esc(str(ctx["tot"].iloc[0].get("quarter", ""))),
         "<<FANROWS>>": fanrows,
         "<<CONDHEAD>>": condhead, "<<CONDROWS>>": condrows,
         "<<MHEAD>>": mhead, "<<MROWS>>": "\n".join(mrows),

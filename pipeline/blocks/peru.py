@@ -10,8 +10,9 @@ import numpy as np
 import pandas as pd
 
 from ._common import (REPO, _dest, complete_quarters, fan_frame,
-                      fill_structural_january, information_stamp,
+                      expected_publication, fill_structural_january, information_stamp,
                       released_first, released_last, write)
+from ._peru_panel import CANDIDATE_SYSTEMS, recursive_expectations_fit
 
 SYSTEM = ["us_gdp_yoy_m", "ip_cum_yoy", "g_tdi", "exp_eco3m", "g_invq_m"]
 H = 8
@@ -19,15 +20,82 @@ FAN_MC = {"n_scenarios": 150, "draws_per_scenario": 8, "seed": 11}
 EXP_DELAY_DAYS = 15         # business expectations: mid-next-month release
 
 
-def _released_expectations(series_m: pd.Series, as_of) -> float:
-    """Last expectations observation RELEASED at ``as_of`` (15-day rule)."""
+def _released_expectations_history(series_m: pd.Series, as_of) -> pd.Series:
+    """Expectations history RELEASED at ``as_of`` under the production rule."""
     s = series_m.dropna()
     ends = pd.DatetimeIndex(s.index) + pd.offsets.MonthEnd(0)
     ok = s[ends + pd.Timedelta(days=EXP_DELAY_DAYS)
            <= pd.Timestamp(as_of).normalize()]
     if ok.empty:
         raise RuntimeError(f"no released expectations at {pd.Timestamp(as_of).date()}")
-    return float(ok.iloc[-1])
+    return ok.copy()
+
+
+def _released_expectations(series_m: pd.Series, as_of) -> float:
+    """Last expectations observation RELEASED at ``as_of`` (15-day rule)."""
+    return float(_released_expectations_history(series_m, as_of).iloc[-1])
+
+
+def _prospective_frame(*, periods, s1, s2, fits, base, as_of, run_id,
+                       target_delay_days: int, exp_fit: dict) -> pd.DataFrame:
+    """Freeze S1 and S2 point forecasts plus the current production widths.
+
+    Both candidates receive the exact same node-1 official nowcast and the
+    same empirically calibrated width curve. Shifting that curve around S2 is
+    not a claim that S2 already has its own calibrated density. It is the
+    center-only promotion counterfactual that future outcomes can score without
+    reusing the inspected model-selection sample.
+    """
+    periods = [pd.Period(p, freq="Q") for p in periods]
+    centres = {"S1-chain": np.asarray(s1, dtype=float),
+               "S2 exp-AR1": np.asarray(s2, dtype=float)}
+    if len(periods) != H or any(len(v) != H for v in centres.values()):
+        raise ValueError("prospective archive requires exactly eight fan nodes")
+    if not all(np.isfinite(v).all() for v in centres.values()):
+        raise ValueError("prospective archive refuses non-finite candidate forecasts")
+    if not np.isclose(centres["S1-chain"][0], centres["S2 exp-AR1"][0]):
+        raise ValueError("S1 and S2 must share the official node-1 nowcast")
+
+    rows = []
+    for model, values in centres.items():
+        density = fan_frame(periods, values, fits, model)
+        density = density.rename(columns={"h": "fan_node", "mode": "forecast"})
+        density["model"] = model
+        density["target"] = "g_pbiq"
+        density["forecast_h"] = density.fan_node - 1
+        density["base_quarter"] = str(pd.Period(base, freq="Q"))
+        density["origin_date"] = str(pd.Timestamp(as_of).normalize().date())
+        density["as_of"] = str(pd.Timestamp(as_of).normalize().date())
+        density["run_id"] = str(run_id)
+        density["outcome_release_date"] = [
+            str(expected_publication(p, target_delay_days).date()) for p in periods]
+        density["y_true"] = np.nan
+        density["outcome_status"] = "unread_at_forecast_freeze"
+        density["evaluation_regime"] = "prospective_real_time_record"
+        density["is_published_center"] = model == "S1-chain"
+        density["band_rule"] = ("published_s1_empirical"
+                                  if model == "S1-chain"
+                                  else "published_s1_widths_shared_center_shift")
+        density["expectations_rule"] = ("flat_last_released"
+                                          if model == "S1-chain"
+                                          else "recursive_expanding_ar1")
+        density["exp_phi"] = (np.nan if model == "S1-chain" else exp_fit.get("phi"))
+        density["exp_long_run_mean"] = (np.nan if model == "S1-chain"
+                                         else exp_fit.get("long_run_mean"))
+        density["exp_n_quarters"] = (np.nan if model == "S1-chain"
+                                      else exp_fit.get("n_quarters"))
+        density["exp_fallback_flat"] = (np.nan if model == "S1-chain"
+                                         else exp_fit.get("fallback_flat"))
+        rows.append(density)
+    out = pd.concat(rows, ignore_index=True)
+    columns = ["run_id", "as_of", "origin_date", "target", "base_quarter",
+               "quarter", "fan_node", "forecast_h", "model", "forecast",
+               "is_published_center", "outcome_release_date", "outcome_status",
+               "y_true", "evaluation_regime", "band_rule", "expectations_rule",
+               "exp_phi", "exp_long_run_mean", "exp_n_quarters",
+               "exp_fallback_flat", "s", "gamma", "sigma_left", "sigma_right",
+               "lo30", "hi30", "lo60", "hi60", "lo90", "hi90", "width90"]
+    return out[columns]
 
 
 def _empirical_fits(H, as_of):
@@ -35,10 +103,11 @@ def _empirical_fits(H, as_of):
 
     Sequential-symmetric calibration from errors KNOWABLE BEFORE ``as_of``
     (legacy day-1/day-30 S1 backtests plus the exact-chain errors as they
-    accrue), fitted in ``pipeline.lib.fan_calibration.production_fits``. The
-    harness's base quarter is the just-ended unpublished one (our node 1), so
-    its horizon k-1 is our node k; day-1 and day-30 anchors interpolate by
-    the day this run publishes, as before.
+    accrue), fitted in ``pipeline.lib.fan_calibration.production_fits``. That
+    module normalizes the legacy and exact-chain horizon conventions onto fan
+    nodes 2..8 before pooling them. Fan node 1 remains the official adaptive
+    nowcast distribution and never enters this medium-term calibration. Day-1
+    and day-30 anchors interpolate by the day this run publishes, as before.
     """
     from pipeline.lib.fan_calibration import production_fits
 
@@ -118,8 +187,9 @@ def build(blocks: dict | None = None, ctx=None, out_dir=None,
     # honours the run's as-of date through each series' publication delay.
     def released_by(sq: pd.Series, delay_days: int) -> pd.Series:
         sq = sq.dropna()
-        rel = pd.PeriodIndex(sq.index, freq="Q").to_timestamp(how="end") \
-            + pd.Timedelta(days=delay_days)
+        from ._common import expected_publication_index
+        rel = expected_publication_index(
+            pd.PeriodIndex(sq.index, freq="Q"), delay_days)
         return sq[rel <= today]
 
     us_rel = mm["us_gdp_yoy_m"].dropna()
@@ -133,8 +203,14 @@ def build(blocks: dict | None = None, ctx=None, out_dir=None,
     us_path, us_mask = released_first(grid, us_rel, us["centre"], "us_gdp_yoy_m")
     tdi_path, tdi_mask = released_first(grid, tdi_rel, tot["centre"], "g_tdi")
     ip_path, ip_mask = released_first(grid, ip_rel, ip_fc, "ip_cum_yoy")
+    exp_history = _released_expectations_history(mm["exp_eco3m"], today)
+    exp_last = float(exp_history.iloc[-1])
+    exp_fit = recursive_expectations_fit(exp_history, exp_last, H)
     paths = {"us_gdp_yoy_m": us_path, "g_tdi": tdi_path, "ip_cum_yoy": ip_path,
-             "exp_eco3m": [_released_expectations(mm["exp_eco3m"], today)] * H}
+             "exp_eco3m": [exp_last] * H}
+    s2_system = list(CANDIDATE_SYSTEMS["S2 evidence"])
+    s2_paths = {"g_tdi": list(tdi_path), "ip_cum_yoy": list(ip_path),
+                "exp_eco3m": list(exp_fit["path"])}
     masks = {"us_gdp_yoy_m": us_mask, "g_tdi": tdi_mask, "ip_cum_yoy": ip_mask}
 
     calib = {}
@@ -201,18 +277,23 @@ def build(blocks: dict | None = None, ctx=None, out_dir=None,
     sims = simulate_var_fan(factory, info, paths, calib, target=spec.target, horizons=H,
                             **FAN_MC)
     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-        lv = forecast.live_forecast(panel, spec,
-                                    {"S1": make_cond(SYSTEM, nowcast_fn=make_fn(), custom=paths,
-                                                     name="S1", draws=3000)},
-                                    horizons=tuple(range(1, H + 1)),
-                                    today=today).set_index("horizon")
+        lv = forecast.live_forecast(
+            panel, spec,
+            {"S1-chain": make_cond(SYSTEM, nowcast_fn=make_fn(), custom=paths,
+                                    name="S1-chain", draws=3000),
+             "S2 exp-AR1": make_cond(s2_system, nowcast_fn=make_fn(), custom=s2_paths,
+                                     name="S2 exp-AR1", draws=3000)},
+            horizons=tuple(range(1, H + 1)), today=today)
+    live_paths = lv.pivot(index="horizon", columns="model", values="y_hat")
 
     # published scales: the model's own real-time errors AT THE MATCHED
     # information state, interpolated between the day-1 and day-30 origin sets
     # by where in the cycle this run publishes (clamped outside the range).
     # This extends the nowcast node's information-state logic to every node.
     emp1, emp30 = _empirical_fits(H, today)
-    day_in_cycle = int((today - cur.to_timestamp(how="end")).days)
+    # canonical clock: days since the NORMALIZED quarter end (day-1 = the
+    # first day after the quarter; the old nanosecond end undercounted by 1)
+    day_in_cycle = int((today - cur.to_timestamp(how="end").normalize()).days)
     w = 0.0 if emp30 is None else float(np.clip((day_in_cycle - 1) / 29.0, 0.0, 1.0))
     fits = [node_fit]
     for k in range(2, H + 1):
@@ -223,7 +304,10 @@ def build(blocks: dict | None = None, ctx=None, out_dir=None,
         s = float(np.sqrt((sl * sl + sr * sr) / 2.0))
         fits.append({"mode_shift": 0.0, "sigma_left": float(sl), "sigma_right": float(sr),
                      "s": s, "gamma": float((sr * sr - sl * sl) / (2 * s * s))})
-    centre = [nc_hat] + [float(lv.loc[h, "y_hat"]) for h in range(2, H + 1)]
+    centre = [nc_hat] + [float(live_paths.at[h, "S1-chain"])
+                         for h in range(2, H + 1)]
+    s2_centre = [nc_hat] + [float(live_paths.at[h, "S2 exp-AR1"])
+                            for h in range(2, H + 1)]
     periods = [cur] + [base + h for h in range(2, H + 1)]
     src = ["nowcast"] + ["conditional BVAR (S1)"] * (H - 1)
     df = fan_frame(periods, centre, fits, src)
@@ -251,12 +335,19 @@ def build(blocks: dict | None = None, ctx=None, out_dir=None,
     else:
         lines_prefix = None
     out = write(df, _dest(out_dir, "peru_gdp_fan.csv"), stamp)
+    prospective = _prospective_frame(
+        periods=periods, s1=centre, s2=s2_centre, fits=fits, base=base,
+        as_of=today, run_id=getattr(ctx, "run_id", "ad_hoc"),
+        target_delay_days=int(spec.target_delay_days), exp_fit=exp_fit)
+    write(prospective, _dest(out_dir, "peru_gdp_model_paths.csv"))
     lines = [f"- **Peru GDP**: " + ", ".join(f"{q} {v:.1f}%" for q, v in
                                              zip(df.quarter.head(4), df["mode"].head(4))),
              f"  - information state: {dtp:+d} days to publication, index {info_idx:.2f} "
              f"(bin {bin_now}) - the first node is {'well informed' if info_idx > 0.75 else 'early-cycle'}",
              f"  - 90% band {df.width90.iloc[0]:.2f}pp at the nowcast, "
-             f"{df.width90.iloc[-1]:.2f}pp at h=8"]
+             f"{df.width90.iloc[-1]:.2f}pp at h=8",
+             f"  - prospective S1/S2 paths frozen for run "
+             f"{getattr(ctx, 'run_id', 'ad_hoc')} (shared production widths)"]
     if lines_prefix:
         lines.insert(1, lines_prefix)
     return df, lines, out

@@ -50,6 +50,7 @@ def run(store, params, panels=None) -> list[str]:
             lines.append(f"- **{name}**: skipped")
             continue
         builder, feeds = BLOCKS[name]
+        print(f"  [chain] {name:12s} running ...", flush=True)
         t0 = time.time()
         try:
             # blocks write INSIDE the run: the staged directory is the only

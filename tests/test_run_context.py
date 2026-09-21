@@ -74,12 +74,12 @@ def test_information_stamp_uses_the_context_date():
     q = pd.Period("2026Q2", freq="Q")
     stamp = information_stamp(Spec(), q, as_of=pd.Timestamp("2026-08-03"))
     assert stamp["as_of"] == "2026-08-03"
-    # publication anchor is the period END TIMESTAMP (2026-06-30 23:59:59) plus
-    # 52 days; the floor division therefore lands one below the naive count.
-    # This is the project-wide dtp convention the band calibration is built on.
-    assert stamp["days_to_publication"] == -19
+    # H5: the publication anchor is the CANONICAL, NORMALIZED quarter end
+    # (2026-06-30 00:00) plus 52 days = 2026-08-21; the old nanosecond-end
+    # flooring landed one day lower and made surfaces disagree (-16 vs -17).
+    assert stamp["days_to_publication"] == -18
     earlier = information_stamp(Spec(), q, as_of=pd.Timestamp("2026-07-04"))
-    assert earlier["days_to_publication"] == -49
+    assert earlier["days_to_publication"] == -48
     # a 30-day shift in as_of shifts the stamp by exactly 30 days
     assert earlier["days_to_publication"] - stamp["days_to_publication"] == -30
 

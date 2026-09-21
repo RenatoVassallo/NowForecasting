@@ -64,6 +64,7 @@ def main(as_of=None, run_id: str | None = None,
     input_pins: dict = {}
 
     def _stage(name, fn):
+        print(f"[stage] {name} started {time.strftime('%H:%M:%S')} ...", flush=True)
         t = time.time()
         try:
             out = fn()
@@ -142,8 +143,17 @@ def main(as_of=None, run_id: str | None = None,
         store.update_latest_symlink()
     if getattr(params, "PUBLISH_PRODUCTS", True):    # one controlled publish step,
         from pipeline.lib.publish import publish_run  # promoted runs only
-        copied = publish_run(root)
-        print(f"[publish] {len(copied)} artifacts -> products/")
+        try:
+            res = publish_run(root,
+                              products_dir=getattr(params, "PUBLISH_DIR", None))
+        except BaseException as exc:
+            # the COMPUTATIONAL run stays promoted and runs/latest stays
+            # valid; publication failed cleanly without touching either
+            # pointer, and the error propagates as a nonzero exit
+            print(f"[publish] FAILED ({type(exc).__name__}: {exc}); the "
+                  f"promoted run is preserved at {root}")
+            raise
+        print(f"[publish] {res.n_files} artifacts -> {res.path}")
     print(f"[done] {root}")
     return root
 
